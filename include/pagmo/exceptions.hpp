@@ -36,14 +36,15 @@ see https://www.gnu.org/licenses/. */
  */
 
 #include <exception>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 
-#define BOOST_STACKTRACE_USE_BACKTRACE
+//#define BOOST_STACKTRACE_USE_BACKTRACE
 #include "external/boost_stacktrace/stacktrace.hpp"
-#undef BOOST_STACKTRACE_USE_BACKTRACE
+//#undef BOOST_STACKTRACE_USE_BACKTRACE
 #include "type_traits.hpp"
 
 namespace pagmo
@@ -55,7 +56,8 @@ template <typename Exception>
 struct ex_thrower {
     // Determine the type of the __LINE__ macro.
     using line_type = decay_t<decltype(__LINE__)>;
-    explicit ex_thrower(const char *file, line_type line, const char *func) : m_file(file), m_line(line), m_func(func)
+    explicit ex_thrower(const char *file, line_type line, const char *func, boost::stacktrace::stacktrace &&st)
+        : m_file(file), m_line(line), m_func(func), m_st(std::move(st))
     {
     }
     template <typename... Args, typename = enable_if_t<std::is_constructible<Exception, Args...>::value>>
@@ -71,7 +73,9 @@ struct ex_thrower {
                                                      || std::is_same<decay_t<Str>, const char *>::value)>::type>
     [[noreturn]] void operator()(Str &&desc, Args &&... args) const
     {
-        std::string msg("\nfunction: ");
+        std::ostringstream oss;
+        oss << m_st;
+        std::string msg("\n" + oss.str() + "\nfunction: ");
         msg += m_func;
         msg += "\nwhere: ";
         msg += m_file;
@@ -85,6 +89,7 @@ struct ex_thrower {
     const char *m_file;
     const line_type m_line;
     const char *m_func;
+    const boost::stacktrace::stacktrace m_st;
 };
 }
 }
@@ -102,8 +107,7 @@ struct ex_thrower {
  *   where \p str is an instance of \p std::string,
  *
  * then the first argument \p arg0 is interpreted as the error message associated to the exception object, and it will
- be decorated
- * with information about the context in which the exception was thrown (file, line, function) before being
+ * be decorated with information about the context in which the exception was thrown (file, line, function) before being
  * passed on for construction.
  *
  * Note that, in order to be fully standard-compliant, for use with exceptions that take no arguments on construction
@@ -118,7 +122,8 @@ struct ex_thrower {
  * is correct.
  */
 #define pagmo_throw(exception_type, ...)                                                                               \
-    pagmo::detail::ex_thrower<exception_type>(__FILE__, __LINE__, __func__)(__VA_ARGS__)
+    pagmo::detail::ex_thrower<exception_type>(__FILE__, __LINE__, __func__,                                            \
+                                              boost::stacktrace::stacktrace{})(__VA_ARGS__)
 
 namespace pagmo
 {
