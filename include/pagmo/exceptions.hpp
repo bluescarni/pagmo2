@@ -41,6 +41,9 @@ see https://www.gnu.org/licenses/. */
 #include <type_traits>
 #include <utility>
 
+#define BOOST_STACKTRACE_USE_BACKTRACE
+#include "external/boost_stacktrace/stacktrace.hpp"
+#undef BOOST_STACKTRACE_USE_BACKTRACE
 #include "type_traits.hpp"
 
 namespace pagmo
