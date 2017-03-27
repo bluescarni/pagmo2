@@ -28,6 +28,12 @@ see https://www.gnu.org/licenses/. */
 
 #include "python_includes.hpp"
 
+// See: https://docs.scipy.org/doc/numpy/reference/c-api.array.html#importing-the-api
+// In every cpp file We need to make sure this is included before everything else,
+// with the correct #defines.
+#define PY_ARRAY_UNIQUE_SYMBOL pygmo_ARRAY_API
+#include "numpy.hpp"
+
 #if defined(_MSC_VER)
 
 // Disable various warnings from MSVC.
@@ -41,7 +47,6 @@ see https://www.gnu.org/licenses/. */
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/python/args.hpp>
 #include <boost/python/class.hpp>
-#include <boost/python/copy_const_reference.hpp>
 #include <boost/python/def.hpp>
 #include <boost/python/default_call_policies.hpp>
 #include <boost/python/docstring_options.hpp>
@@ -56,7 +61,6 @@ see https://www.gnu.org/licenses/. */
 #include <boost/python/object.hpp>
 #include <boost/python/operators.hpp>
 #include <boost/python/return_internal_reference.hpp>
-#include <boost/python/return_value_policy.hpp>
 #include <boost/python/scope.hpp>
 #include <boost/python/self.hpp>
 #include <boost/python/tuple.hpp>
@@ -67,38 +71,11 @@ see https://www.gnu.org/licenses/. */
 #include <tuple>
 
 #include <pagmo/algorithm.hpp>
-#ifdef PAGMO_WITH_EIGEN3
-#include <pagmo/algorithms/cmaes.hpp>
-#endif
-#include <pagmo/algorithms/compass_search.hpp>
-#include <pagmo/algorithms/de.hpp>
-#include <pagmo/algorithms/de1220.hpp>
-#include <pagmo/algorithms/mbh.hpp>
-#include <pagmo/algorithms/moead.hpp>
-#include <pagmo/algorithms/nsga2.hpp>
-#include <pagmo/algorithms/pso.hpp>
-#include <pagmo/algorithms/sade.hpp>
-#include <pagmo/algorithms/sea.hpp>
-#include <pagmo/algorithms/simulated_annealing.hpp>
+#include <pagmo/archipelago.hpp>
+#include <pagmo/detail/make_unique.hpp>
+#include <pagmo/island.hpp>
 #include <pagmo/population.hpp>
 #include <pagmo/problem.hpp>
-#include <pagmo/problems/ackley.hpp>
-#if !defined(_MSC_VER)
-#include <pagmo/problems/cec2013.hpp>
-#endif
-#include <pagmo/problems/cec2006.hpp>
-#include <pagmo/problems/cec2009.hpp>
-#include <pagmo/problems/decompose.hpp>
-#include <pagmo/problems/dtlz.hpp>
-#include <pagmo/problems/griewank.hpp>
-#include <pagmo/problems/hock_schittkowsky_71.hpp>
-#include <pagmo/problems/inventory.hpp>
-#include <pagmo/problems/rastrigin.hpp>
-#include <pagmo/problems/rosenbrock.hpp>
-#include <pagmo/problems/schwefel.hpp>
-#include <pagmo/problems/translate.hpp>
-#include <pagmo/problems/unconstrain.hpp>
-#include <pagmo/problems/zdt.hpp>
 #include <pagmo/serialization.hpp>
 #include <pagmo/threading.hpp>
 #include <pagmo/type_traits.hpp>
@@ -114,10 +91,12 @@ see https://www.gnu.org/licenses/. */
 #include "algorithm_exposition_suite.hpp"
 #include "common_utils.hpp"
 #include "docstrings.hpp"
-#include "numpy.hpp"
+#include "expose_algorithms.hpp"
+#include "expose_problems.hpp"
+#include "island.hpp"
+#include "island_exposition_suite.hpp"
 #include "object_serialization.hpp"
 #include "problem.hpp"
-#include "problem_exposition_suite.hpp"
 #include "pygmo_classes.hpp"
 
 #if defined(_MSC_VER)
@@ -171,11 +150,12 @@ namespace pygmo
 
 // Problem and meta-problem classes.
 std::unique_ptr<bp::class_<problem>> problem_ptr{};
-decltype(meta_probs_ptrs) meta_probs_ptrs{};
 
 // Algorithm and meta-algorithm classes.
 std::unique_ptr<bp::class_<algorithm>> algorithm_ptr{};
-decltype(meta_algos_ptrs) meta_algos_ptrs{};
+
+// Island.
+std::unique_ptr<bp::class_<island>> island_ptr{};
 }
 
 // The cleanup function.
@@ -188,10 +168,10 @@ decltype(meta_algos_ptrs) meta_algos_ptrs{};
 static inline void cleanup()
 {
     pygmo::problem_ptr.reset();
-    pygmo::meta_probs_ptrs = decltype(pygmo::meta_probs_ptrs){};
 
     pygmo::algorithm_ptr.reset();
-    pygmo::meta_algos_ptrs = decltype(pygmo::meta_algos_ptrs){};
+
+    pygmo::island_ptr.reset();
 }
 
 // Serialization support for the population class.
@@ -230,15 +210,41 @@ struct population_pickle_suite : bp::pickle_suite {
     }
 };
 
-// Helper to get the list of allowed variants for de1220.
-static inline bp::list de1220_allowed_variants()
-{
-    bp::list retval;
-    for (const auto &n : de1220_statics<void>::allowed_variants) {
-        retval.append(n);
+// Serialization support for the archi class.
+struct archipelago_pickle_suite : bp::pickle_suite {
+    static bp::tuple getinitargs(const archipelago &)
+    {
+        return bp::make_tuple();
     }
-    return retval;
-}
+    static bp::tuple getstate(const archipelago &archi)
+    {
+        std::ostringstream oss;
+        {
+            cereal::PortableBinaryOutputArchive oarchive(oss);
+            oarchive(archi);
+        }
+        auto s = oss.str();
+        return bp::make_tuple(pygmo::make_bytes(s.data(), boost::numeric_cast<Py_ssize_t>(s.size())));
+    }
+    static void setstate(archipelago &archi, bp::tuple state)
+    {
+        if (len(state) != 1) {
+            pygmo_throw(PyExc_ValueError, "the state tuple must have a single element");
+        }
+        auto ptr = PyBytes_AsString(bp::object(state[0]).ptr());
+        if (!ptr) {
+            pygmo_throw(PyExc_TypeError, "a bytes object is needed to deserialize an archipelago");
+        }
+        const auto size = len(state[0]);
+        std::string s(ptr, ptr + size);
+        std::istringstream iss;
+        iss.str(s);
+        {
+            cereal::PortableBinaryInputArchive iarchive(iss);
+            iarchive(archi);
+        }
+    }
+};
 
 // Helper function to test the to_vd functionality.
 static inline bool test_to_vd(const bp::object &o, unsigned n)
@@ -263,152 +269,40 @@ static inline bool test_to_vvd(const bp::object &o, unsigned n, unsigned m)
            && std::all_of(res.begin(), res.end(), [m](const vector_double &v) { return v.size() == m; });
 }
 
-// A test problem.
-struct test_problem {
-    test_problem(unsigned nobj = 1) : m_nobj(nobj)
-    {
-    }
-    vector_double fitness(const vector_double &) const
-    {
-        return {1.};
-    }
-    std::pair<vector_double, vector_double> get_bounds() const
-    {
-        return {{0.}, {1.}};
-    }
-    // Set/get an internal value to test extraction semantics.
-    void set_n(int n)
-    {
-        m_n = n;
-    }
-    int get_n() const
-    {
-        return m_n;
-    }
-    vector_double::size_type get_nobj() const
-    {
-        return m_nobj;
-    }
-    int m_n = 1;
-    unsigned m_nobj;
+// NOTE: we need to provide a custom raii waiter in the island. The reason is the following.
+// Boost.Python locks the GIL when crossing the boundary from Python into C++. So, if we call wait() from Python,
+// BP will lock the GIL and then we will be waiting for evolutions in the island to finish. During this time, no
+// Python code will be executed because the GIL is locked. This means that if we have a Python thread doing background
+// work (e.g., managing the task queue in pythonic islands), it will have to wait before doing any progress. By
+// unlocking the GIL before calling thread_island::wait(), we give the chance to other Python threads to continue
+// doing some work.
+// NOTE: here we have 2 RAII classes interacting with the GIL. The GIL releaser is the *second* one,
+// and it is the one that is responsible for unlocking the Python interpreter while wait() is running.
+// The *first* one, the GIL thread ensurer, does something else: it makes sure that we can call the Python
+// interpreter from the current C++ thread. In a normal situation, in which islands are just instantiated
+// from the main thread, the gte object is superfluous. However, if we are interacting with islands from a
+// separate C++ thread, then we need to make sure that every time we call into the Python interpreter (e.g., by
+// using the GIL releaser below) we inform Python we are about to call from a separate thread. This is what
+// the GTE object does. This use case is, for instance, what happens with the PADE algorithm when, algo, prob,
+// etc. are all C++ objects (when at least one object is pythonic, we will not end up using the thread island).
+// NOTE: by ordering the class members in this way we ensure that gte is constructed before gr, which is essential
+// (otherwise we might be calling into the interpreter with a releaser before informing Python we are calling
+// from a separate thread).
+struct py_wait_locks {
+    pygmo::gil_thread_ensurer gte;
+    pygmo::gil_releaser gr;
 };
-
-// A thread-unsafe test problem.
-struct tu_test_problem {
-    vector_double fitness(const vector_double &) const
-    {
-        return {1.};
-    }
-    std::pair<vector_double, vector_double> get_bounds() const
-    {
-        return {{0.}, {1.}};
-    }
-    thread_safety get_thread_safety() const
-    {
-        return thread_safety::none;
-    }
-};
-
-// A test algo.
-struct test_algorithm {
-    population evolve(const population &pop) const
-    {
-        return pop;
-    }
-    // Set/get an internal value to test extraction semantics.
-    void set_n(int n)
-    {
-        m_n = n;
-    }
-    int get_n() const
-    {
-        return m_n;
-    }
-    int m_n = 1;
-};
-
-// A thread unsafe test algo.
-struct tu_test_algorithm {
-    population evolve(const population &pop) const
-    {
-        return pop;
-    }
-    thread_safety get_thread_safety() const
-    {
-        return thread_safety::none;
-    }
-};
-
-// Metaprogramming for the implementation of connect_meta_problems().
-struct meta_problem_connector {
-    template <typename Meta>
-    struct runner {
-        template <typename Meta2>
-        void operator()(std::unique_ptr<bp::class_<Meta2>> &ptr) const
-        {
-            // Construct Meta2 from Meta (this could be the same meta).
-            pygmo::make_meta_problem_init<Meta2, Meta>{}(*ptr);
-            // Extract Meta from Meta2.
-            ptr->def("_cpp_extract", &pygmo::generic_cpp_extract<Meta2, Meta>, bp::return_internal_reference<>());
-        }
-    };
-    template <typename Meta>
-    void operator()(std::unique_ptr<bp::class_<Meta>> &) const
-    {
-        // We need a nested iteration over all the metas.
-        pagmo::detail::tuple_for_each(pygmo::meta_probs_ptrs, runner<Meta>{});
-    }
-};
-
-// This function will expose ctors/extract for all meta-problems wrt all meta-problems (e.g., init translate
-// from decompose and viceversa, extract translate from decompose and viceversa, etc.).
-static inline void connect_meta_problems()
-{
-    pagmo::detail::tuple_for_each(pygmo::meta_probs_ptrs, meta_problem_connector{});
-}
-
-// Metaprogramming for the implementation of connect_meta_algorithms().
-struct meta_algorithm_connector {
-    template <typename Meta>
-    struct runner {
-        template <typename Meta2>
-        void operator()(std::unique_ptr<bp::class_<Meta2>> &ptr) const
-        {
-            // Construct Meta2 from Meta (this could be the same meta).
-            pygmo::make_meta_algorithm_init<Meta2, Meta>{}(*ptr);
-            // Extract Meta from Meta2.
-            ptr->def("_cpp_extract", &pygmo::generic_cpp_extract<Meta2, Meta>, bp::return_internal_reference<>());
-        }
-    };
-    template <typename Meta>
-    void operator()(std::unique_ptr<bp::class_<Meta>> &) const
-    {
-        // We need a nested iteration over all the metas.
-        pagmo::detail::tuple_for_each(pygmo::meta_algos_ptrs, runner<Meta>{});
-    }
-};
-
-// This function will expose ctors/extract for all meta-algos wrt all meta-algos.
-static inline void connect_meta_algorithms()
-{
-    pagmo::detail::tuple_for_each(pygmo::meta_algos_ptrs, meta_algorithm_connector{});
-}
 
 BOOST_PYTHON_MODULE(core)
 {
-    // Setup doc options
-    bp::docstring_options doc_options;
-    doc_options.enable_all();
-    doc_options.disable_cpp_signatures();
-    doc_options.disable_py_signatures();
+    // This function needs to be called before doing anything with threads.
+    // https://docs.python.org/3/c-api/init.html
+    ::PyEval_InitThreads();
 
     // Init numpy.
     // NOTE: only the second import is strictly necessary. We run a first import from BP
     // because that is the easiest way to detect whether numpy is installed or not (rather
     // than trying to figure out a way to detect it from wrap_import_array()).
-    // NOTE: if we split the module in multiple C++ files, we need to take care of importing numpy
-    // from every extension file and also defining PY_ARRAY_UNIQUE_SYMBOL as explained here:
-    // http://docs.scipy.org/doc/numpy/reference/c-api.array.html#importing-the-api
     try {
         bp::import("numpy.core.multiarray");
     } catch (...) {
@@ -418,6 +312,53 @@ BOOST_PYTHON_MODULE(core)
         pygmo_throw(PyExc_ImportError, "");
     }
     wrap_import_array();
+
+    // Check that dill is available.
+    try {
+        bp::import("dill");
+    } catch (...) {
+        pygmo::builtin().attr("print")(
+            u8"\033[91m====ERROR====\nThe dill module could not be imported. "
+            u8"Please make sure that dill has been correctly installed.\n====ERROR====\033[0m");
+        pygmo_throw(PyExc_ImportError, "");
+    }
+
+    // Override the default implementation of the island factory.
+    detail::island_factory<>::s_func = [](const algorithm &algo, const population &pop,
+                                          std::unique_ptr<detail::isl_inner_base> &ptr) {
+        if (static_cast<int>(algo.get_thread_safety()) >= static_cast<int>(thread_safety::basic)
+            && static_cast<int>(pop.get_problem().get_thread_safety()) >= static_cast<int>(thread_safety::basic)) {
+            // Both algo and prob have at least the basic thread safety guarantee. Use the thread island.
+            ptr = detail::make_unique<detail::isl_inner<thread_island>>();
+        } else {
+            // NOTE: here we are re-implementing a piece of code that normally
+            // is pure C++. We are calling into the Python interpreter, so, in order to handle
+            // the case in which we are invoking this code from a separate C++ thread, we construct a GIL ensurer
+            // in order to guard against concurrent access to the interpreter. The idea here is that this piece
+            // of code normally would provide a basic thread safety guarantee, and in order to continue providing
+            // it we use the ensurer.
+            pygmo::gil_thread_ensurer gte;
+            bp::object py_island = bp::import("pygmo")
+#if defined(_WIN32) || PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 4)
+                                       // NOTE: the mp_island is supported since Python 3.4 or on Windows.
+                                       .attr("mp_island");
+#else
+                                       .attr("ipyparallel_island");
+#endif
+            ptr = detail::make_unique<detail::isl_inner<bp::object>>(py_island());
+        }
+    };
+
+    // Override the default RAII waiter. We need to use shared_ptr because we don't want to move/copy/destroy
+    // the locks when invoking this from island::wait(), we need to instaniate exactly 1 py_wait_lock and have it
+    // destroyed at the end of island::wait().
+    detail::wait_raii<>::getter = []() { return std::make_shared<py_wait_locks>(); };
+
+    // Setup doc options
+    bp::docstring_options doc_options;
+    doc_options.enable_all();
+    doc_options.disable_cpp_signatures();
+    doc_options.disable_py_signatures();
 
     // The thread_safety enum.
     bp::enum_<thread_safety>("_thread_safety").value("none", thread_safety::none).value("basic", thread_safety::basic);
@@ -454,15 +395,23 @@ BOOST_PYTHON_MODULE(core)
     auto algorithms_module = bp::object(bp::handle<>(bp::borrowed(algorithms_module_ptr)));
     bp::scope().attr("algorithms") = algorithms_module;
 
+    // Create the islands submodule.
+    std::string islands_module_name = bp::extract<std::string>(bp::scope().attr("__name__") + ".islands");
+    PyObject *islands_module_ptr = PyImport_AddModule(islands_module_name.c_str());
+    if (!islands_module_ptr) {
+        pygmo_throw(PyExc_RuntimeError, "error while creating the 'islands' submodule");
+    }
+    auto islands_module = bp::object(bp::handle<>(bp::borrowed(islands_module_ptr)));
+    bp::scope().attr("islands") = islands_module;
+
     // Population class.
     bp::class_<population> pop_class("population", pygmo::population_docstring().c_str(), bp::no_init);
     // Ctors from problem.
     // NOTE: we expose only the ctors from pagmo::problem, not from C++ or Python UDPs. An __init__ wrapper
     // on the Python side will take care of cting a pagmo::problem from the input UDP, and then invoke this ctor.
     // This way we avoid having to expose a different ctor for every exposed C++ prob.
-    pop_class.def(bp::init<const problem &, population::size_type>((bp::arg("prob"), bp::arg("size"))))
-        .def(bp::init<const problem &, population::size_type, unsigned>(
-            (bp::arg("prob"), bp::arg("size"), bp::arg("seed"))))
+    pop_class.def(bp::init<const problem &, population::size_type>())
+        .def(bp::init<const problem &, population::size_type, unsigned>())
         // Repr.
         .def(repr(bp::self))
         // Copy and deepcopy.
@@ -517,7 +466,7 @@ BOOST_PYTHON_MODULE(core)
 
     // Problem class.
     pygmo::problem_ptr
-        = pygmo::make_unique<bp::class_<problem>>("problem", pygmo::problem_docstring().c_str(), bp::init<>());
+        = detail::make_unique<bp::class_<problem>>("problem", pygmo::problem_docstring().c_str(), bp::init<>());
     auto &problem_class = *pygmo::problem_ptr;
     problem_class.def(bp::init<const bp::object &>((bp::arg("udp"))))
         .def(repr(bp::self))
@@ -594,7 +543,7 @@ BOOST_PYTHON_MODULE(core)
 
     // Algorithm class.
     pygmo::algorithm_ptr
-        = pygmo::make_unique<bp::class_<algorithm>>("algorithm", pygmo::algorithm_docstring().c_str(), bp::init<>());
+        = detail::make_unique<bp::class_<algorithm>>("algorithm", pygmo::algorithm_docstring().c_str(), bp::init<>());
     auto &algorithm_class = *pygmo::algorithm_ptr;
     algorithm_class.def(bp::init<const bp::object &>((bp::arg("uda"))))
         .def(repr(bp::self))
@@ -618,283 +567,9 @@ BOOST_PYTHON_MODULE(core)
         .def("get_thread_safety", &algorithm::get_thread_safety,
              pygmo::algorithm_get_thread_safety_docstring().c_str());
 
-    // Translate meta-problem.
-    pygmo::expose_meta_problem(std::get<0>(pygmo::meta_probs_ptrs), "translate", pygmo::translate_docstring().c_str());
-    auto &tp = *std::get<0>(pygmo::meta_probs_ptrs);
-    // Getter for the translation vector.
-    tp.add_property("translation", +[](const translate &t) { return pygmo::v_to_a(t.get_translation()); },
-                    pygmo::translate_translation_docstring().c_str());
-
-    // Decompose meta-problem.
-    pygmo::expose_meta_problem(std::get<1>(pygmo::meta_probs_ptrs), "decompose", pygmo::decompose_docstring().c_str());
-    auto &dp = *std::get<1>(pygmo::meta_probs_ptrs);
-    // Returns the original multi-objective fitness
-    dp.def("original_fitness", +[](const pagmo::decompose &p,
-                                   const bp::object &x) { return pygmo::v_to_a(p.original_fitness(pygmo::to_vd(x))); },
-           pygmo::decompose_original_fitness_docstring().c_str(), (bp::arg("x")));
-    dp.add_property("z", +[](const pagmo::decompose &p) { return pygmo::v_to_a(p.get_z()); },
-                    pygmo::decompose_z_docstring().c_str());
-
-    // Unconstrain meta-problem.
-    pygmo::expose_meta_problem(std::get<2>(pygmo::meta_probs_ptrs), "unconstrain",
-                               pygmo::unconstrain_docstring().c_str());
-
-    // Before moving to the user-defined C++ problems, we need to expose the interoperability between
-    // meta-problems.
-    connect_meta_problems();
-
-    // Exposition of C++ problems.
-    // Test problem.
-    auto test_p = pygmo::expose_problem<test_problem>("_test_problem", "A test problem.");
-    test_p.def(bp::init<unsigned>((bp::arg("nobj"))));
-    test_p.def("get_n", &test_problem::get_n);
-    test_p.def("set_n", &test_problem::set_n);
-    // Thread unsafe test problem.
-    pygmo::expose_problem<tu_test_problem>("_tu_test_problem", "A thread unsafe test problem.");
-    // Null problem.
-    auto np = pygmo::expose_problem<null_problem>("null_problem", pygmo::null_problem_docstring().c_str());
-    np.def(bp::init<vector_double::size_type, vector_double::size_type, vector_double::size_type>(
-        (bp::arg("nobj") = 1, bp::arg("nec") = 0, bp::arg("nic") = 0)));
-    // Rosenbrock.
-    auto rb = pygmo::expose_problem<rosenbrock>("rosenbrock", pygmo::rosenbrock_docstring().c_str());
-    rb.def(bp::init<unsigned>((bp::arg("dim"))));
-    rb.def("best_known", &pygmo::best_known_wrapper<rosenbrock>,
-           pygmo::problem_get_best_docstring("Rosenbrock").c_str());
-    // Hock-Schittkowsky 71
-    auto hs71 = pygmo::expose_problem<hock_schittkowsky_71>("hock_schittkowsky_71",
-                                                            "__init__()\n\nThe Hock-Schittkowsky 71 problem.\n\n"
-                                                            "See :cpp:class:`pagmo::hock_schittkowsky_71`.\n\n");
-    hs71.def("best_known", &pygmo::best_known_wrapper<hock_schittkowsky_71>,
-             pygmo::problem_get_best_docstring("Hock-Schittkowsky 71").c_str());
-    // Rastrigin.
-    auto rastr = pygmo::expose_problem<rastrigin>("rastrigin", "__init__(dim = 1)\n\nThe Rastrigin problem.\n\n"
-                                                               "See :cpp:class:`pagmo::rastrigin`.\n\n");
-    rastr.def(bp::init<unsigned>((bp::arg("dim"))));
-    rastr.def("best_known", &pygmo::best_known_wrapper<rastrigin>,
-              pygmo::problem_get_best_docstring("Rastrigin").c_str());
-    // Schwefel.
-    auto sch = pygmo::expose_problem<schwefel>("schwefel", "__init__(dim = 1)\n\nThe Schwefel problem.\n\n"
-                                                           "See :cpp:class:`pagmo::schwefel`.\n\n");
-    sch.def(bp::init<unsigned>((bp::arg("dim"))));
-    sch.def("best_known", &pygmo::best_known_wrapper<schwefel>, pygmo::problem_get_best_docstring("Schwefel").c_str());
-    // Ackley.
-    auto ack = pygmo::expose_problem<ackley>("ackley", "__init__(dim = 1)\n\nThe Ackley problem.\n\n"
-                                                       "See :cpp:class:`pagmo::ackley`.\n\n");
-    ack.def(bp::init<unsigned>((bp::arg("dim"))));
-    ack.def("best_known", &pygmo::best_known_wrapper<ackley>, pygmo::problem_get_best_docstring("Ackley").c_str());
-    // Griewank.
-    auto griew = pygmo::expose_problem<griewank>("griewank", "__init__(dim = 1)\n\nThe Griewank problem.\n\n"
-                                                             "See :cpp:class:`pagmo::griewank`.\n\n");
-    griew.def(bp::init<unsigned>((bp::arg("dim"))));
-    griew.def("best_known", &pygmo::best_known_wrapper<griewank>,
-              pygmo::problem_get_best_docstring("Griewank").c_str());
-    // ZDT.
-    auto zdt_p = pygmo::expose_problem<zdt>("zdt", "__init__(prob_id = 1, param = 30)\n\nThe ZDT problem.\n\n"
-                                                   "See :cpp:class:`pagmo::zdt`.\n\n");
-    zdt_p.def(bp::init<unsigned, unsigned>((bp::arg("prob_id") = 1u, bp::arg("param") = 30u)));
-    zdt_p.def("p_distance", +[](const zdt &z, const bp::object &x) { return z.p_distance(pygmo::to_vd(x)); });
-    zdt_p.def("p_distance", +[](const zdt &z, const population &pop) { return z.p_distance(pop); },
-              pygmo::zdt_p_distance_docstring().c_str());
-    // DTLZ.
-    auto dtlz_p = pygmo::expose_problem<dtlz>("dtlz", pygmo::dtlz_docstring().c_str());
-    dtlz_p.def(bp::init<unsigned, unsigned, unsigned, unsigned>(
-        (bp::arg("prob_id") = 1u, bp::arg("dim") = 5u, bp::arg("fdim") = 3u, bp::arg("alpha") = 100u)));
-    dtlz_p.def("p_distance", +[](const dtlz &z, const bp::object &x) { return z.p_distance(pygmo::to_vd(x)); });
-    dtlz_p.def("p_distance", +[](const dtlz &z, const population &pop) { return z.p_distance(pop); },
-               pygmo::dtlz_p_distance_docstring().c_str());
-    // Inventory.
-    auto inv = pygmo::expose_problem<inventory>(
-        "inventory", "__init__(weeks = 4,sample_size = 10,seed = random)\n\nThe inventory problem.\n\n"
-                     "See :cpp:class:`pagmo::inventory`.\n\n");
-    inv.def(bp::init<unsigned, unsigned>((bp::arg("weeks") = 4u, bp::arg("sample_size") = 10u)));
-    inv.def(
-        bp::init<unsigned, unsigned, unsigned>((bp::arg("weeks") = 4u, bp::arg("sample_size") = 10u, bp::arg("seed"))));
-// excluded in MSVC (Dec. - 2016) because of troubles to deal with the big static array defining the problem data. To be
-// reassesed in future versions of the compiler
-#if !defined(_MSC_VER)
-    // CEC 2013.
-    auto cec2013_ = pygmo::expose_problem<cec2013>("cec2013", pygmo::cec2013_docstring().c_str());
-    cec2013_.def(bp::init<unsigned, unsigned>((bp::arg("prob_id") = 1, bp::arg("dim") = 2)));
-#endif
-
-    // CEC 2006
-    auto cec2006_ = pygmo::expose_problem<cec2006>("cec2006", pygmo::cec2006_docstring().c_str());
-    cec2006_.def(bp::init<unsigned>((bp::arg("prob_id") = 1)));
-    cec2006_.def("best_known", &pygmo::best_known_wrapper<cec2006>,
-                 pygmo::problem_get_best_docstring("CEC 2006").c_str());
-
-    // CEC 2009
-    auto cec2009_ = pygmo::expose_problem<cec2009>("cec2009", pygmo::cec2009_docstring().c_str());
-    cec2009_.def(bp::init<unsigned, bool, unsigned>(
-        (bp::arg("prob_id") = 1u, bp::arg("is_constrained") = false, bp::arg("dim") = 30u)));
-
-    // MBH meta-algo.
-    pygmo::expose_meta_algorithm(std::get<0>(pygmo::meta_algos_ptrs), "mbh", pygmo::mbh_docstring().c_str());
-    auto &mbh_ = *std::get<0>(pygmo::meta_algos_ptrs);
-    mbh_.def("get_seed", &mbh::get_seed, pygmo::mbh_get_seed_docstring().c_str());
-    mbh_.def("get_verbosity", &mbh::get_verbosity, pygmo::mbh_get_verbosity_docstring().c_str());
-    mbh_.def("set_perturb", +[](mbh &a, const bp::object &o) { a.set_perturb(pygmo::to_vd(o)); },
-             pygmo::mbh_set_perturb_docstring().c_str(), (bp::arg("perturb")));
-    pygmo::expose_algo_log(mbh_, pygmo::mbh_get_log_docstring().c_str());
-    mbh_.def("get_perturb", +[](const mbh &a) { return pygmo::v_to_a(a.get_perturb()); },
-             pygmo::mbh_get_perturb_docstring().c_str());
-
-    // Before moving to the user-defined C++ algos, we need to expose the interoperability between
-    // meta-algos.
-    connect_meta_algorithms();
-
-    // Test algo.
-    auto test_a = pygmo::expose_algorithm<test_algorithm>("_test_algorithm", "A test algorithm.");
-    test_a.def("get_n", &test_algorithm::get_n);
-    test_a.def("set_n", &test_algorithm::set_n);
-    // Thread unsafe test algo.
-    pygmo::expose_algorithm<tu_test_algorithm>("_tu_test_algorithm", "A thread unsafe test algorithm.");
-    // Null algo.
-    auto na = pygmo::expose_algorithm<null_algorithm>("null_algorithm", pygmo::null_algorithm_docstring().c_str());
-    // DE
-    auto de_ = pygmo::expose_algorithm<de>("de", pygmo::de_docstring().c_str());
-    de_.def(bp::init<unsigned int, double, double, unsigned int, double, double>(
-        (bp::arg("gen") = 1u, bp::arg("F") = .8, bp::arg("CR") = .9, bp::arg("variant") = 2u, bp::arg("ftol") = 1e-6,
-         bp::arg("tol") = 1E-6)));
-    de_.def(bp::init<unsigned int, double, double, unsigned int, double, double, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("F") = .8, bp::arg("CR") = .9, bp::arg("variant") = 2u, bp::arg("ftol") = 1e-6,
-         bp::arg("tol") = 1E-6, bp::arg("seed"))));
-    pygmo::expose_algo_log(de_, pygmo::de_get_log_docstring().c_str());
-    de_.def("get_seed", &de::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-    // COMPASS SEARCH
-    auto compass_search_
-        = pygmo::expose_algorithm<compass_search>("compass_search", pygmo::compass_search_docstring().c_str());
-    compass_search_.def(
-        bp::init<unsigned int, double, double, double>((bp::arg("max_fevals") = 1u, bp::arg("start_range") = .1,
-                                                        bp::arg("stop_range") = .01, bp::arg("reduction_coeff") = .5)));
-    pygmo::expose_algo_log(compass_search_, pygmo::compass_search_get_log_docstring().c_str());
-    compass_search_.def("get_max_fevals", &compass_search::get_max_fevals);
-    compass_search_.def("get_start_range", &compass_search::get_start_range);
-    compass_search_.def("get_stop_range", &compass_search::get_stop_range);
-    compass_search_.def("get_reduction_coeff", &compass_search::get_reduction_coeff);
-    compass_search_.def("get_verbosity", &compass_search::get_verbosity);
-    // PSO
-    auto pso_ = pygmo::expose_algorithm<pso>("pso", pygmo::pso_docstring().c_str());
-    pso_.def(bp::init<unsigned, double, double, double, double, unsigned, unsigned, unsigned, bool>(
-        (bp::arg("gen") = 1u, bp::arg("omega") = 0.7298, bp::arg("eta1") = 2.05, bp::arg("eta2") = 2.05,
-         bp::arg("max_vel") = 0.5, bp::arg("variant") = 5u, bp::arg("neighb_type") = 2u, bp::arg("neighb_param") = 4u,
-         bp::arg("memory") = false)));
-    pso_.def(bp::init<unsigned, double, double, double, double, unsigned, unsigned, unsigned, bool, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("omega") = 0.7298, bp::arg("eta1") = 2.05, bp::arg("eta2") = 2.05,
-         bp::arg("max_vel") = 0.5, bp::arg("variant") = 5u, bp::arg("neighb_type") = 2u, bp::arg("neighb_param") = 4u,
-         bp::arg("memory") = false, bp::arg("seed"))));
-    pygmo::expose_algo_log(pso_, pygmo::pso_get_log_docstring().c_str());
-    pso_.def("get_seed", &pso::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-    // SEA
-    auto sea_ = pygmo::expose_algorithm<sea>("sea", "__init__(gen = 1, seed = random)\n\n"
-                                                    "(N+1)-ES simple evolutionary algorithm.\n\n");
-    sea_.def(bp::init<unsigned>((bp::arg("gen") = 1u)));
-    sea_.def(bp::init<unsigned, unsigned>((bp::arg("gen") = 1u, bp::arg("seed"))));
-    pygmo::expose_algo_log(sea_, "");
-    sea_.def("get_seed", &sea::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-    // SIMULATED ANNEALING
-    auto simulated_annealing_ = pygmo::expose_algorithm<simulated_annealing>(
-        "simulated_annealing", pygmo::simulated_annealing_docstring().c_str());
-    simulated_annealing_.def(bp::init<double, double, unsigned, unsigned, unsigned, double>(
-        (bp::arg("Ts") = 10., bp::arg("Tf") = 0.1, bp::arg("n_T_adj") = 10u, bp::arg("n_range_adj") = 1u,
-         bp::arg("bin_size") = 20u, bp::arg("start_range") = 1.)));
-    simulated_annealing_.def(bp::init<double, double, unsigned, unsigned, unsigned, double, unsigned>(
-        (bp::arg("Ts") = 10., bp::arg("Tf") = 0.1, bp::arg("n_T_adj") = 10u, bp::arg("n_range_adj") = 10u,
-         bp::arg("bin_size") = 10u, bp::arg("start_range") = 1., bp::arg("seed"))));
-    pygmo::expose_algo_log(simulated_annealing_, pygmo::simulated_annealing_get_log_docstring().c_str());
-    simulated_annealing_.def("get_seed", &simulated_annealing::get_seed,
-                             pygmo::generic_uda_get_seed_docstring().c_str());
-    // SADE
-    auto sade_ = pygmo::expose_algorithm<sade>("sade", pygmo::sade_docstring().c_str());
-    sade_.def(bp::init<unsigned, unsigned, unsigned, double, double, bool>(
-        (bp::arg("gen") = 1u, bp::arg("variant") = 2u, bp::arg("variant_adptv") = 1u, bp::arg("ftol") = 1e-6,
-         bp::arg("xtol") = 1e-6, bp::arg("memory") = false)));
-    sade_.def(bp::init<unsigned, unsigned, unsigned, double, double, bool, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("variant") = 2u, bp::arg("variant_adptv") = 1u, bp::arg("ftol") = 1e-6,
-         bp::arg("xtol") = 1e-6, bp::arg("memory") = false, bp::arg("seed"))));
-    pygmo::expose_algo_log(sade_, pygmo::sade_get_log_docstring().c_str());
-    sade_.def("get_seed", &sade::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-    // DE-1220
-    auto de1220_ = pygmo::expose_algorithm<de1220>("de1220", pygmo::de1220_docstring().c_str());
-    de1220_.def("__init__", bp::make_constructor(
-                                +[](unsigned gen, const bp::object &allowed_variants, unsigned variant_adptv,
-                                    double ftol, double xtol, bool memory) -> de1220 * {
-                                    auto av = pygmo::to_vu(allowed_variants);
-                                    return ::new de1220(gen, av, variant_adptv, ftol, xtol, memory);
-                                },
-                                bp::default_call_policies(),
-                                (bp::arg("gen") = 1u, bp::arg("allowed_variants") = de1220_allowed_variants(),
-                                 bp::arg("variant_adptv") = 1u, bp::arg("ftol") = 1e-6, bp::arg("xtol") = 1e-6,
-                                 bp::arg("memory") = false)));
-    de1220_.def("__init__", bp::make_constructor(
-                                +[](unsigned gen, const bp::object &allowed_variants, unsigned variant_adptv,
-                                    double ftol, double xtol, bool memory, unsigned seed) -> de1220 * {
-                                    auto av = pygmo::to_vu(allowed_variants);
-                                    return ::new de1220(gen, av, variant_adptv, ftol, xtol, memory, seed);
-                                },
-                                bp::default_call_policies(),
-                                (bp::arg("gen") = 1u, bp::arg("allowed_variants") = de1220_allowed_variants(),
-                                 bp::arg("variant_adptv") = 1u, bp::arg("ftol") = 1e-6, bp::arg("xtol") = 1e-6,
-                                 bp::arg("memory") = false, bp::arg("seed"))));
-    pygmo::expose_algo_log(de1220_, pygmo::de1220_get_log_docstring().c_str());
-    de1220_.def("get_seed", &de1220::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-// CMA-ES
-#ifdef PAGMO_WITH_EIGEN3
-    auto cmaes_ = pygmo::expose_algorithm<cmaes>("cmaes", pygmo::cmaes_docstring().c_str());
-    cmaes_.def(bp::init<unsigned, double, double, double, double, double, double, double, bool>(
-        (bp::arg("gen") = 1u, bp::arg("cc") = -1., bp::arg("cs") = -1., bp::arg("c1") = -1., bp::arg("cmu") = -1.,
-         bp::arg("sigma0") = 0.5, bp::arg("ftol") = 1e-6, bp::arg("xtol") = 1e-6, bp::arg("memory") = false)));
-    cmaes_.def(bp::init<unsigned, double, double, double, double, double, double, double, bool, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("cc") = -1., bp::arg("cs") = -1., bp::arg("c1") = -1., bp::arg("cmu") = -1.,
-         bp::arg("sigma0") = 0.5, bp::arg("ftol") = 1e-6, bp::arg("xtol") = 1e-6, bp::arg("memory") = false,
-         bp::arg("seed"))));
-    pygmo::expose_algo_log(cmaes_, pygmo::cmaes_get_log_docstring().c_str());
-    cmaes_.def("get_seed", &cmaes::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-#endif
-    // MOEA/D - DE
-    auto moead_ = pygmo::expose_algorithm<moead>("moead", pygmo::moead_docstring().c_str());
-    moead_.def(bp::init<unsigned, std::string, std::string, unsigned, double, double, double, double, unsigned, bool>(
-        (bp::arg("gen") = 1u, bp::arg("weight_generation") = "grid", bp::arg("decomposition") = "tchebycheff",
-         bp::arg("neighbours") = 20u, bp::arg("CR") = 1., bp::arg("F") = 0.5, bp::arg("eta_m") = 20,
-         bp::arg("realb") = 0.9, bp::arg("limit") = 2u, bp::arg("preserve_diversity") = true)));
-    moead_.def(bp::init<unsigned, std::string, std::string, unsigned, double, double, double, double, unsigned, bool,
-                        unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("weight_generation") = "grid", bp::arg("decomposition") = "tchebycheff",
-         bp::arg("neighbours") = 20u, bp::arg("CR") = 1., bp::arg("F") = 0.5, bp::arg("eta_m") = 20,
-         bp::arg("realb") = 0.9, bp::arg("limit") = 2u, bp::arg("preserve_diversity") = true, bp::arg("seed"))));
-    // moead needs an ad hoc exposition for the log as one entry is a vector (ideal_point)
-    moead_.def("get_log",
-               +[](const moead &a) -> bp::list {
-                   bp::list retval;
-                   for (const auto &t : a.get_log()) {
-                       retval.append(bp::make_tuple(std::get<0>(t), std::get<1>(t), std::get<2>(t),
-                                                    pygmo::v_to_a(std::get<3>(t))));
-                   }
-                   return retval;
-               },
-               pygmo::moead_get_log_docstring().c_str());
-
-    moead_.def("get_seed", &moead::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
-    // NSGA2
-    auto nsga2_ = pygmo::expose_algorithm<nsga2>("nsga2", pygmo::nsga2_docstring().c_str());
-    nsga2_.def(bp::init<unsigned, double, double, double, double, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("cr") = 0.95, bp::arg("eta_c") = 10., bp::arg("m") = 0.01, bp::arg("eta_m") = 10.,
-         bp::arg("int_dim") = 0)));
-    nsga2_.def(bp::init<unsigned, double, double, double, double, unsigned>(
-        (bp::arg("gen") = 1u, bp::arg("cr") = 0.95, bp::arg("eta_c") = 10., bp::arg("m") = 0.01, bp::arg("eta_m") = 10.,
-         bp::arg("int_dim") = 0, bp::arg("seed"))));
-    // nsga2 needs an ad hoc exposition for the log as one entry is a vector (ideal_point)
-    nsga2_.def("get_log",
-               +[](const nsga2 &a) -> bp::list {
-                   bp::list retval;
-                   for (const auto &t : a.get_log()) {
-                       retval.append(bp::make_tuple(std::get<0>(t), std::get<1>(t), pygmo::v_to_a(std::get<2>(t))));
-                   }
-                   return retval;
-               },
-               pygmo::nsga2_get_log_docstring().c_str());
-
-    nsga2_.def("get_seed", &nsga2::get_seed, pygmo::generic_uda_get_seed_docstring().c_str());
+    // Expose problems and algorithms.
+    pygmo::expose_problems();
+    pygmo::expose_algorithms();
 
     // Exposition of various structured utilities
     // Hypervolume class
@@ -921,7 +596,7 @@ BOOST_PYTHON_MODULE(core)
                               const bp::object &r_point) { return hv.exclusive(p_idx, pygmo::to_vd(r_point)); },
              (bp::arg("idx"), bp::arg("ref_point")))
         .def("exclusive",
-             +[](const hypervolume &hv, unsigned int p_idx, const bp::object &r_point,
+             +[](const hypervolume &hv, unsigned p_idx, const bp::object &r_point,
                  boost::shared_ptr<hv_algorithm> hv_algo) {
                  return hv.exclusive(p_idx, pygmo::to_vd(r_point), *hv_algo);
              },
@@ -1005,4 +680,57 @@ BOOST_PYTHON_MODULE(core)
             pygmo::nadir_docstring().c_str(), bp::arg("points"));
     bp::def("ideal", +[](const bp::object &p) { return pygmo::v_to_a(pagmo::ideal(pygmo::to_vvd(p))); },
             pygmo::ideal_docstring().c_str(), bp::arg("points"));
+
+    // Island.
+    pygmo::island_ptr
+        = detail::make_unique<bp::class_<island>>("island", pygmo::island_docstring().c_str(), bp::init<>());
+    auto &island_class = *pygmo::island_ptr;
+    island_class.def(bp::init<const algorithm &, const population &>())
+        .def(bp::init<const bp::object &, const algorithm &, const population &>())
+        .def(repr(bp::self))
+        .def_pickle(pygmo::island_pickle_suite())
+        // Copy and deepcopy.
+        .def("__copy__", &pygmo::generic_copy_wrapper<island>)
+        .def("__deepcopy__", &pygmo::generic_deepcopy_wrapper<island>)
+        .def("evolve", +[](island &isl, unsigned n) { isl.evolve(n); }, pygmo::island_evolve_docstring().c_str(),
+             boost::python::arg("n") = 1u)
+        .def("busy", &island::busy, pygmo::island_busy_docstring().c_str())
+        .def("wait", &island::wait, pygmo::island_wait_docstring().c_str())
+        .def("get", &island::get, pygmo::island_get_docstring().c_str())
+        .def("get_population", &island::get_population, pygmo::island_get_population_docstring().c_str())
+        .def("get_algorithm", &island::get_algorithm, pygmo::island_get_algorithm_docstring().c_str())
+        .def("set_population", &island::set_population, pygmo::island_set_population_docstring().c_str(),
+             bp::arg("pop"))
+        .def("set_algorithm", &island::set_algorithm, pygmo::island_set_algorithm_docstring().c_str(), bp::arg("algo"))
+        .def("get_thread_safety",
+             +[](const island &isl) -> bp::tuple {
+                 const auto ts = isl.get_thread_safety();
+                 return bp::make_tuple(ts[0], ts[1]);
+             },
+             pygmo::island_get_thread_safety_docstring().c_str())
+        .def("get_name", &island::get_name, pygmo::island_get_name_docstring().c_str())
+        .def("get_extra_info", &island::get_extra_info, pygmo::island_get_extra_info_docstring().c_str());
+
+    // Thread island.
+    auto ti = pygmo::expose_island<thread_island>("thread_island", pygmo::thread_island_docstring().c_str());
+
+    // Archi.
+    bp::class_<archipelago> archi_class("archipelago", pygmo::archipelago_docstring().c_str(),
+                                        bp::init<archipelago::size_type, const island &>());
+    archi_class.def(repr(bp::self))
+        .def_pickle(archipelago_pickle_suite())
+        // Copy and deepcopy.
+        .def("__copy__", &pygmo::generic_copy_wrapper<archipelago>)
+        .def("__deepcopy__", &pygmo::generic_deepcopy_wrapper<archipelago>)
+        // Size.
+        .def("__len__", &archipelago::size)
+        .def("evolve", +[](archipelago &archi, unsigned n) { archi.evolve(n); },
+             pygmo::archipelago_evolve_docstring().c_str(), boost::python::arg("n") = 1u)
+        .def("busy", &archipelago::busy, pygmo::archipelago_busy_docstring().c_str())
+        .def("wait", &archipelago::wait, pygmo::archipelago_wait_docstring().c_str())
+        .def("get", &archipelago::get, pygmo::archipelago_get_docstring().c_str())
+        .def("__getitem__", +[](archipelago &archi, archipelago::size_type n) -> island & { return archi[n]; },
+             pygmo::archipelago_getitem_docstring().c_str(), bp::return_internal_reference<>())
+        // NOTE: docs for push_back() are in the Python reimplementation.
+        .def("_push_back", +[](archipelago &archi, const island &isl) { archi.push_back(isl); });
 }

@@ -250,7 +250,7 @@ public:
                                 ++count;
                                 std::cout << std::endl; // we flush here as we want the user to read in real time ...
                                 // Logs
-                                m_log.push_back(log_line_type(fevals_count, best_f[0], fOLD[0], avg_range, currentT));
+                                m_log.emplace_back(fevals_count, best_f[0], fOLD[0], avg_range, currentT);
                             }
                         }
                     } // end for(nter = 0; ...
@@ -372,9 +372,9 @@ public:
     /// Get log
     /**
      * A log containing relevant quantities monitoring the last call to evolve. Each element of the returned
-     * <tt> std::vector </tt> is a simulated_annealing::log_line_type containing: Fevals, Best, Current, Mean range
+     * <tt>std::vector</tt> is a simulated_annealing::log_line_type containing: Fevals, Best, Current, Mean range
      * Temperature as described in simulated_annealing::set_verbosity
-     * @return an <tt> std::vector </tt> of simulated_annealing::log_line_type containing the logged values Gen, Fevals,
+     * @return an <tt>std::vector</tt> of simulated_annealing::log_line_type containing the logged values Gen, Fevals,
      * Best, Improvement, Mutations
      */
     const log_type &get_log() const

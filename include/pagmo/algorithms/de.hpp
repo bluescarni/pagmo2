@@ -397,7 +397,7 @@ public:
                           pop.get_f()[best_idx][0], std::setw(15), dx, std::setw(15), df, '\n');
                     ++count;
                     // Logs
-                    m_log.push_back(log_line_type(gen, prob.get_fevals() - fevals0, pop.get_f()[best_idx][0], dx, df));
+                    m_log.emplace_back(gen, prob.get_fevals() - fevals0, pop.get_f()[best_idx][0], dx, df);
                 }
             }
         } // end main DE iterations
@@ -493,9 +493,9 @@ public:
     /// Get log
     /**
      * A log containing relevant quantities monitoring the last call to evolve. Each element of the returned
-     * <tt> std::vector </tt> is a de::log_line_type containing: Gen, Fevals, Best, dx, df as described
+     * <tt>std::vector</tt> is a de::log_line_type containing: Gen, Fevals, Best, dx, df as described
      * in de::set_verbosity
-     * @return an <tt> std::vector </tt> of de::log_line_type containing the logged values Gen, Fevals, Best, dx, df
+     * @return an <tt>std::vector</tt> of de::log_line_type containing the logged values Gen, Fevals, Best, dx, df
      */
     const log_type &get_log() const
     {

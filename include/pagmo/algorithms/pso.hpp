@@ -490,7 +490,7 @@ public:
                           mean_velocity, std::setw(15), lb_avg, std::setw(15), avg_dist, '\n');
                     ++count;
                     // Logs
-                    m_log.push_back(log_line_type(gen, feval_count, best, mean_velocity, lb_avg, avg_dist));
+                    m_log.emplace_back(gen, feval_count, best, mean_velocity, lb_avg, avg_dist);
                 }
             }
         } // end of main PSO loop
@@ -599,9 +599,9 @@ public:
     /// Get log
     /**
      * A log containing relevant quantities monitoring the last call to evolve. Each element of the returned
-     * <tt> std::vector </tt> is a pso::log_line_type containing: Gen, Fevals, gbest,
+     * <tt>std::vector</tt> is a pso::log_line_type containing: Gen, Fevals, gbest,
      * Mean Vel., Mean lbest, Avg. Dist. as described in pso::set_verbosity
-     * @return an <tt> std::vector </tt> of pso::log_line_type containing the logged values
+     * @return an <tt>std::vector</tt> of pso::log_line_type containing the logged values
      */
     const log_type &get_log() const
     {
