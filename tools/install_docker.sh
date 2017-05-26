@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# Exit on error
-set -e
 # Echo each command
 set -x
 
@@ -14,6 +12,8 @@ if [[ ${PAGMO_BUILD} == *36 ]]; then
 	PYTHON_DIR="cp36-cp36m"
 elif [[ ${PAGMO_BUILD} == *35 ]]; then
 	PYTHON_DIR="cp35-cp35m"
+elif [[ ${PAGMO_BUILD} == *34 ]]; then
+	PYTHON_DIR="cp34-cp34m"
 elif [[ ${PAGMO_BUILD} == *27 ]]; then
 	PYTHON_DIR="cp27-cp27mu"
 else
@@ -74,7 +74,7 @@ make -j2 install > /dev/null
 cd ..
 
 # Python deps
-/opt/python/${PYTHON_DIR}/bin/pip install dill numpy ipyparallel
+/opt/python/${PYTHON_DIR}/bin/pip install cloudpickle numpy ipyparallel
 /opt/python/${PYTHON_DIR}/bin/ipcluster start --daemonize=True
 sleep 20
 
@@ -92,7 +92,7 @@ auditwheel repair dist/pygmo* -w ./dist2
 # Try to install it and run the tests.
 cd /
 /opt/python/${PYTHON_DIR}/bin/pip install /pagmo2/build/wheel/dist2/pygmo*
-/opt/python/${PYTHON_DIR}/bin/python -c "import pygmo; pygmo.test.run_test_suite()"
+/opt/python/${PYTHON_DIR}/bin/python -c "import pygmo; pygmo.test.run_test_suite(1)"
 
 # Upload to pypi. This variable will contain something if this is a tagged build (vx.y.z), otherwise it will be empty.
 export PAGMO_RELEASE_VERSION=`echo "${TRAVIS_TAG}"|grep -E 'v[0-9]+\.[0-9]+.*'|cut -c 2-`

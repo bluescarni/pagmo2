@@ -149,6 +149,12 @@ std::string population_champion_x_docstring()
 
 This read-only property contains an array of ``float`` representing the decision vector of the population's champion.
 
+.. note::
+
+   If the problem is stochastic the champion is the individual that had the lowest fitness for
+   some lucky seed, not on average across seeds. Re-evaluating its decision vector may then result in a different
+   fitness.
+
 Returns:
     1D NumPy float array: the champion's decision vector
 
@@ -165,6 +171,12 @@ std::string population_champion_f_docstring()
     return R"(Champion's fitness vector.
 
 This read-only property contains an array of ``float`` representing the fitness vector of the population's champion.
+
+.. note::
+
+   If the problem is stochastic, the champion is the individual that had the lowest fitness for
+   some lucky seed, not on average across seeds. Re-evaluating its decision vector may then result in a different
+   fitness.
 
 Returns:
     1D NumPy float array: the champion's fitness vector
@@ -185,7 +197,9 @@ Sets the :math:`i`-th individual decision vector, and fitness.
 
 Sets simultaneously the :math:`i`-th individual decision vector and fitness thus avoiding to trigger a fitness function evaluation.
 
-**NOTE**: the user must make sure that the input fitness *f* makes sense as pygmo will only check its dimension.
+.. note::
+
+   The user must make sure that the input fitness *f* makes sense as pygmo will only check its dimension.
 
 Args:
     i (``int``): individual’s index in the population
@@ -210,7 +224,9 @@ Sets the :math:`i`-th individual decision vector.
 Sets the chromosome of the :math:`i`-th individual to the value *x* and changes its fitness accordingly. The
 individual's ID remains the same.
 
-**NOTE**: a call to this method triggers one fitness function evaluation.
+.. note::
+
+   A call to this method triggers one fitness function evaluation.
 
 Args:
     i (``int``): individual’s index in the population
@@ -738,9 +754,11 @@ The availability of the gradient sparsity is determined as follows:
 The optional ``has_gradient_sparsity()`` method of the UDP must return a ``bool``. For information on how to
 implement the ``gradient_sparsity()`` method of the UDP, see :func:`~pygmo.problem.gradient_sparsity()`.
 
-**NOTE** regardless of what this method returns, the :func:`~pygmo.problem.gradient_sparsity()` method will always
-return a sparsity pattern: if the UDP does not provide the gradient sparsity, pygmo will assume that the sparsity
-pattern of the gradient is dense. See :func:`~pygmo.problem.gradient_sparsity()` for more details.
+.. note::
+
+   Regardless of what this method returns, the :func:`~pygmo.problem.gradient_sparsity()` method will always
+   return a sparsity pattern: if the UDP does not provide the gradient sparsity, pygmo will assume that the sparsity
+   pattern of the gradient is dense. See :func:`~pygmo.problem.gradient_sparsity()` for more details.
 
 Returns:
     ``bool``: a flag signalling the availability of the gradient sparsity in the UDP
@@ -877,9 +895,11 @@ The availability of the hessians sparsity is determined as follows:
 The optional ``has_hessians_sparsity()`` method of the UDP must return a ``bool``. For information on how to
 implement the ``hessians_sparsity()`` method of the UDP, see :func:`~pygmo.problem.hessians_sparsity()`.
 
-**NOTE** regardless of what this method returns, the :func:`~pygmo.problem.hessians_sparsity()` method will always
-return a sparsity pattern: if the UDP does not provide the hessians sparsity, pygmo will assume that the sparsity
-pattern of the hessians is dense. See :func:`~pygmo.problem.hessians_sparsity()` for more details.
+.. note::
+
+   Regardless of what this method returns, the :func:`~pygmo.problem.hessians_sparsity()` method will always
+   return a sparsity pattern: if the UDP does not provide the hessians sparsity, pygmo will assume that the sparsity
+   pattern of the hessians is dense. See :func:`~pygmo.problem.hessians_sparsity()` for more details.
 
 Returns:
     ``bool``: a flag signalling the availability of the hessians sparsity in the UDP
@@ -1012,7 +1032,9 @@ std::string problem_feasibility_x_docstring()
 This method will check the feasibility of the fitness corresponding to a decision vector *x* against
 the tolerances returned by :attr:`~pygmo.problem.c_tol`.
 
-**NOTE** This will cause one fitness evaluation.
+.. note:
+
+This will cause one fitness evaluation.
 
 Args:
     dv (array-like object): a decision vector
@@ -1563,17 +1585,24 @@ objective function. Using the above definitions the overall pseudo code can be s
 
 :class:`pygmo.cstrs_self_adaptive` is a user-defined algorithm (UDA) that can be used to construct :class:`pygmo.algorithm` objects.
 
-**NOTE** Self-adaptive constraints handling implements an internal cache to avoid the re-evaluation of the fitness
-for decision vectors already evaluated. This makes the final counter of function evaluations somehow unpredictable.
+.. note:
+
+Self-adaptive constraints handling implements an internal cache to avoid the re-evaluation of the fitness
+for decision vectors already evaluated. This makes the final counter of fitness evaluations somewhat unpredictable.
+
 The number of function evaluation will be bounded to *iters* times the fevals made by one call to the inner UDA. The
 internal cache is reset at each iteration, but its size will grow unlimited during each call to
 the inner UDA evolve method.
 
-**NOTE** Several modification were made to the original Faramani and Wright ideas to allow their approach to work on
+.. note:
+
+Several modification were made to the original Faramani and Wright ideas to allow their approach to work on
 corner cases and with any UDAs. Most notably, a violation to the \f$j\f$-th  constraint is ignored if all
 the decision vectors in the population satisfy that particular constraint (i.e. if \f$c_{j_{max}} = 0\f$).
 
-**NOTE** The performances of :class:`~pygmo.cstrs_self_adaptive` are highly dependent on the particular inner
+.. note:
+
+The performances of :class:`~pygmo.cstrs_self_adaptive` are highly dependent on the particular inner
 algorithm employed and in particular to its parameters (generations / iterations).
 
 See: Farmani, Raziyeh, and Jonathan A. Wright. "Self-adaptive fitness formulation for constrained optimization." IEEE
@@ -1810,7 +1839,7 @@ Implementation of Example 5.1 in the report from Luksan and Vlcek.
 
 The problem is also known as the Chained Rosenbrock function with trigonometric-exponential constraints.
 
-Its formulation in pagmo can be written as:
+Its formulation in pygmo is written as:
 
 .. math::
    \begin{array}{rl}
@@ -1889,12 +1918,12 @@ Examples:
     >>> prob = problem(rosenbrock(10))
     >>> pop = population(prob, 20)
     >>> pop = algo.evolve(pop) # doctest: +SKIP
-    Gen:        Fevals:  Current best:          Best:
-       1             40         183728         183728
-     101           4040        506.757        26.4234
-     201           8040        55.6282        14.9136
-     301          12040         65.554        14.9136
-     401          16040        191.654        14.9136
+    Gen:        Fevals:          Best: Current Best:
+       1             40         261363         261363
+     101           4040        112.237        267.969
+     201           8040        20.8885        265.122
+     301          12040        20.6076        20.6076
+     401          16040         18.252        140.079
     >>> uda = algo.extract(bee_colony)
     >>> uda.get_log() # doctest: +SKIP
     [(1, 40, 183727.83934515435, 183727.83934515435), ...
@@ -2581,7 +2610,7 @@ Returns a log containing relevant parameters recorded during the last call to ``
 The log frequency depends on the verbosity parameter (by default nothing is logged) which can be set calling
 the method :func:`~pygmo.algorithm.set_verbosity()` on an :class:`~pygmo.algorithm` constructed with a
 :class:`~pygmo.simulated_annealing`. A verbosity larger than 0 will produce a log with one entry
-each verbosity function evaluations.
+each verbosity fitness evaluations.
 
 Returns:
     ``list`` of ``tuples``: at each logged epoch, the values ``Fevals``, ``Best``, ``Current``, ``Mean range``, ``Temperature``, where:
@@ -2662,11 +2691,15 @@ where :math:`d_1 = (\mathbf f - \mathbf z^*) \cdot \hat {\mathbf i}_{\lambda}`,
 :math:`d_2 = \vert (\mathbf f - \mathbf z^*) - d_1 \hat {\mathbf i}_{\lambda})\vert` and
 :math:`\hat {\mathbf i}_{\lambda} = \frac{\boldsymbol \lambda}{\vert \boldsymbol \lambda \vert}`.
 
-**NOTE** The reference point :math:`z^*` is often taken as the ideal point and as such
+.. note:
+
+The reference point :math:`z^*` is often taken as the ideal point and as such
 it may be allowed to change during the course of the optimization / evolution. The argument adapt_ideal activates
 this behaviour so that whenever a new ideal point is found :math:`z^*` is adapted accordingly.
 
-**NOTE** The use of :class:`~pygmo.decompose` discards gradients and hessians so that if the original user defined problem
+.. note:
+
+The use of :class:`~pygmo.decompose` discards gradients and hessians so that if the original user defined problem
 implements them, they will not be available in the decomposed problem. The reason for this behaviour is that
 the Tchebycheff decomposition is not differentiable. Also, the use of this class was originally intended for
 derivative-free optimization.
@@ -2728,7 +2761,9 @@ std::string decompose_z_docstring()
 This read-only property contains the reference point to be used for the decomposition. This is only
 used for Tchebycheff and boundary interception decomposition methods.
 
-**NOTE** The reference point is adapted at each call of the fitness.
+.. note:
+
+The reference point is adapted at each call of the fitness.
 
 Returns:
     1D NumPy float array: the reference point
@@ -2754,7 +2789,9 @@ This meta-problem transforms a constrained problem into an unconstrained problem
 * Ignore the constraints: simply ignores the constraints.
 * Ignore the objectives: ignores the objectives and defines as a new single objective the overall constraints violation (i.e. the sum of the L2 norms of the equalities and inequalities violations)
 
-**NOTE** The use of :class:`~pygmo.unconstrain` discards gradients and hessians so that if the original user defined problem
+.. note:
+
+The use of :class:`~pygmo.unconstrain` discards gradients and hessians so that if the original user defined problem
 implements them, they will not be available in the unconstrained problem. The reason for this behaviour is that,
 in general, the methods implemented may not be differentiable. Also, the use of this class was originally intended for
 derivative-free optimization.
@@ -2893,6 +2930,7 @@ containing objective vectors) with respect to the following strict ordering:
 Complexity is :math:`\mathcal{O}(M N^2)` where :math:`M` is the size of the objective vector and :math:`N` is the number of individuals.
 
 .. note::
+
    This function will also work for single objective optimization, i.e. with objective vector
    of size 1, in which case, though, it is more efficient to sort using python built-in sorting methods.
 
@@ -3573,7 +3611,9 @@ std::string hv_refpoint_docstring()
 Calculates a mock refpoint by taking the maximum in each dimension over all points saved in the hypervolume object.
 The result is a point that is necessarily dominated by all other points, and thus can be used for hypervolume computations.
 
-**NOTE** This point is different from the one computed by :func:`~pygmo.nadir()` as only the non dominated front is considered
+.. note:
+
+This point is different from the one computed by :func:`~pygmo.nadir()` as only the non dominated front is considered
 in that method (also its complexity is thus higher)
 
 Args:
@@ -3601,14 +3641,15 @@ Through the UDI, the island class manages the asynchronous evolution (or optimis
 of its :class:`~pygmo.population` via the algorithm's :func:`~pygmo.algorithm.evolve()`
 method. Depending on the UDI, the evolution might take place in a separate thread (e.g., if the UDI is a
 :class:`~pygmo.thread_island`), in a separate process (e.g., if the UDI is a
-:class:`~pygmo.py_islands.mp_island`) or even in a separate machine (e.g., if the UDI is a
-:class:`~pygmo.py_islands.ipyparallel_island`). The evolution is always asynchronous (i.e., running in the
+:class:`~pygmo.mp_island`) or even in a separate machine (e.g., if the UDI is a
+:class:`~pygmo.ipyparallel_island`). The evolution is always asynchronous (i.e., running in the
 "background") and it is initiated by a call to the :func:`~pygmo.island.evolve()` method. At any
 time the user can query the state of the island and fetch its internal data members. The user can explicitly
 wait for pending evolutions to conclude by calling the :func:`~pygmo.island.wait()` and
-:func:`~pygmo.island.get()` methods.
+:func:`~pygmo.island.wait_check()` methods. The status of ongoing evolutions in the island can be queried via
+the :attr:`~pygmo.island.status` attribute.
 
-Typically, pagmo users will employ an already-available UDI in conjunction with this class (see :ref:`here <py_islands>`
+Typically, pygmo users will employ an already-available UDI in conjunction with this class (see :ref:`here <py_islands>`
 for a full list), but advanced users can implement their own UDI types. A user-defined island must implement
 the following method:
 
@@ -3635,8 +3676,7 @@ In addition to the mandatory ``run_evolve()`` method, a UDI may implement the fo
      ...
 
 See the documentation of the corresponding methods in this class for details on how the optional
-methods in the UDI are used by :class:`~pygmo.island`. This class is the Python counterpart of the C++ class
-:cpp:class:`pagmo::island`.
+methods in the UDI are used by :class:`~pygmo.island`.
 
 An island can be initialised in a variety of ways using keyword arguments:
 
@@ -3650,14 +3690,16 @@ An island can be initialised in a variety of ways using keyword arguments:
 
   * if *algo* and *pop*'s problem provide at least the :attr:`~pygmo.thread_safety.basic` thread safety guarantee,
     then :class:`~pygmo.thread_island` will be selected as UDI type;
-  * otherwise, if the current platform is Windows or the Python version is at least 3.4, then :class:`~pygmo.py_islands.mp_island`
-    will be selected as UDI type, else :class:`~pygmo.py_islands.ipyparallel_island` will be chosen;
+  * otherwise, if the current platform is Windows or the Python version is at least 3.4, then :class:`~pygmo.mp_island`
+    will be selected as UDI type, else :class:`~pygmo.ipyparallel_island` will be chosen;
 * if the arguments list contains *algo*, *prob*, *size* and, optionally, *udi* and *seed*, then a :class:`~pygmo.population`
   will be constructed from *prob*, *size* and *seed*, and the construction will then proceed in the same way detailed
   above (i.e., *algo* and the newly-created population are used to initialise the island's algorithm and population,
   and the UDI, if not specified, will be chosen according to the heuristic detailed above).
 
 If the keyword arguments list is invalid, a :exc:`KeyError` exception will be raised.
+
+This class is the Python counterpart of the C++ class :cpp:class:`pagmo::island`.
 
 )";
 }
@@ -3674,11 +3716,12 @@ will be pushed to a queue, and then return immediately. The tasks in the queue a
 managed by the :class:`~pygmo.island` object. Each task will invoke the ``run_evolve()`` method of the UDI *n*
 times consecutively to perform the actual evolution. The island's population will be updated at the end of each ``run_evolve()``
 invocation. Exceptions raised inside the tasks are stored within the island object, and can be re-raised by calling
-:func:`~pygmo.island.get()`.
+:func:`~pygmo.island.wait_check()`.
 
 It is possible to call this method multiple times to enqueue multiple evolution tasks, which will be consumed in a FIFO (first-in
-first-out) fashion. The user may call :func:`~pygmo.island.wait()` or :func:`~pygmo.island.get()` to block until all
-tasks have been completed, and to fetch exceptions raised during the execution of the tasks.
+first-out) fashion. The user may call :func:`~pygmo.island.wait()` or :func:`~pygmo.island.wait_check()` to block until all
+tasks have been completed, and to fetch exceptions raised during the execution of the tasks. The :attr:`~pygmo.island.status`
+attribute can be used to query the status of the asynchronous operations in the island.
 
 Args:
      n (``int``): the number of times the ``run_evolve()`` method of the UDI will be called within the evolution task
@@ -3691,15 +3734,19 @@ Raises:
 )";
 }
 
-std::string island_get_docstring()
+std::string island_wait_check_docstring()
 {
-    return R"(get()
+    return R"(wait_check()
 
 Block until evolution ends and re-raise the first stored exception.
 
-This method will block until all the evolution tasks enqueued via :func:`~pygmo.island.evolve()` have been completed.
-The method will then raise the first exception raised by any task enqueued since the last time :func:`~pygmo.island.wait()`
-or :func:`~pygmo.island.get()` were called.
+If one task enqueued after the last call to :func:`~pygmo.island.wait_check()` threw an exception, the exception will be re-thrown
+by this method. If more than one task enqueued after the last call to :func:`~pygmo.island.wait_check()` threw an exception,
+this method will re-throw the exception raised by the first enqueued task that threw, and the exceptions
+from all the other tasks that threw will be ignored.
+
+Note that :func:`~pygmo.island.wait_check()` resets the status of the island: after a call to :func:`~pygmo.island.wait_check()`,
+:attr:`~pygmo.island.status` will always return :attr:`pygmo.evolve_status.idle`.
 
 Raises:
     unspecified: any exception thrown by evolution tasks or by the underlying C++ method
@@ -3712,18 +3759,36 @@ std::string island_wait_docstring()
     return R"(wait()
 
 This method will block until all the evolution tasks enqueued via :func:`~pygmo.island.evolve()` have been completed.
+Exceptions thrown by the enqueued tasks can be re-raised via :func:`~pygmo.island.wait_check()`: they will **not** be
+re-thrown by this method. Also, contrary to :func:`~pygmo.island.wait_check()`, this method will **not** reset the
+status of the island: after a call to :func:`~pygmo.island.wait()`, :attr:`~pygmo.island.status` will always return
+either :attr:`pygmo.evolve_status.idle` or :attr:`pygmo.evolve_status.idle_error`.
 
 )";
 }
 
-std::string island_busy_docstring()
+std::string island_status_docstring()
 {
-    return R"(busy()
+    return R"(Status of the island.
 
-Check island status.
+This read-only property will return an :class:`~pygmo.evolve_status` flag indicating the current status of
+asynchronous operations in the island. The flag will be:
+
+* :attr:`~pygmo.evolve_status.idle` if the island is currently not evolving and no exceptions
+  were thrown by evolution tasks since the last call to :func:`~pygmo.island.wait_check()`;
+* :attr:`~pygmo.evolve_status.busy` if the island is evolving and no exceptions
+  have (yet) been thrown by evolution tasks since the last call to :func:`~pygmo.island.wait_check()`;
+* :attr:`~pygmo.evolve_status.idle_error` if the island is currently not evolving and at least one
+  evolution task threw an exception since the last call to :func:`~pygmo.island.wait_check()`;
+* :attr:`~pygmo.evolve_status.busy_error` if the island is currently evolving and at least one
+  evolution task has already thrown an exception since the last call to :func:`~pygmo.island.wait_check()`.
+
+Note that after a call to :func:`~pygmo.island.wait_check()`, :attr:`~pygmo.island.status` will always return
+:attr:`~pygmo.evolve_status.idle`, and after a call to :func:`~pygmo.island.wait()`, :attr:`~pygmo.island.status`
+will always return either :attr:`~pygmo.evolve_status.idle` or :attr:`~pygmo.evolve_status.idle_error`.
 
 Returns:
-    ``bool``: ``True`` if the island is evolving, ``False`` otherwise
+    :class:`~pygmo.evolve_status`: a flag indicating the current status of asynchronous operations in the island
 
 )";
 }
@@ -3879,7 +3944,11 @@ std::string archipelago_docstring()
 An archipelago is a collection of :class:`~pygmo.island` objects which provides a convenient way to perform
 multiple optimisations in parallel.
 
-This class is the Python counterpart of the C++ class :cpp:class:`pagmo::archipelago`.
+The interface of :class:`~pygmo.archipelago` mirrors partially the interface of :class:`~pygmo.island`: the
+evolution is initiated by a call to :func:`~pygmo.archipelago.evolve()`, and at any time the user can query the
+state of the archipelago and access its island members. The user can explicitly wait for pending evolutions
+to conclude by calling the :func:`~pygmo.archipelago.wait()` and :func:`~pygmo.archipelago.wait_check()` methods.
+The status of ongoing evolutions in the archipelago can be queried via the :attr:`~pygmo.archipelago.status` attribute.
 
 )";
 }
@@ -3891,8 +3960,9 @@ std::string archipelago_evolve_docstring()
 Evolve archipelago.
 
 This method will call :func:`pygmo.island.evolve()` on all the islands of the archipelago.
-The input parameter *n* represent the number of times the ``run_evolve()`` method of the island's
-UDI is called within the evolution task.
+The input parameter *n* will be passed to the invocations of :func:`pygmo.island.evolve()` for each island.
+The :attr:`~pygmo.archipelago.status` attribute can be used to query the status of the asynchronous operations in the
+archipelago.
 
 Args:
      n (``int``): the parameter that will be passed to :func:`pygmo.island.evolve()`
@@ -3903,14 +3973,28 @@ Raises:
 )";
 }
 
-std::string archipelago_busy_docstring()
+std::string archipelago_status_docstring()
 {
-    return R"(busy()
+    return R"(Status of the archipelago.
 
-Check archipelago status.
+This read-only property will return an :class:`~pygmo.evolve_status` flag indicating the current status of
+asynchronous operations in the archipelago. The flag will be:
+
+* :attr:`~pygmo.evolve_status.idle` if, for all the islands in the archipelago, :attr:`pygmo.island.status`
+  returns :attr:`~pygmo.evolve_status.idle`;
+* :attr:`~pygmo.evolve_status.busy` if, for at least one island in the archipelago, :attr:`pygmo.island.status`
+  returns :attr:`~pygmo.evolve_status.busy`, and for no island :attr:`pygmo.island.status` returns an error status;
+* :attr:`~pygmo.evolve_status.idle_error` if no island in the archipelago is busy and for at least one island
+  :attr:`pygmo.island.status` returns :attr:`~pygmo.evolve_status.idle_error`;
+* :attr:`~pygmo.evolve_status.busy_error` if, for at least one island in the archipelago, :attr:`pygmo.island.status`
+  returns an error status and at least one island is busy.
+
+Note that after a call to :func:`~pygmo.archipelago.wait_check()`, :attr:`pygmo.archipelago.status` will always return
+:attr:`~pygmo.evolve_status.idle`, and after a call to :func:`~pygmo.archipelago.wait()`, :attr:`pygmo.archipelago.status`
+will always return either :attr:`~pygmo.evolve_status.idle` or :attr:`~pygmo.evolve_status.idle_error`.
 
 Returns:
-    ``bool``: ``True`` if at least one island is evolving, ``False`` otherwise
+    :class:`~pygmo.evolve_status`:  a flag indicating the current status of asynchronous operations in the archipelago
 
 )";
 }
@@ -3921,21 +4005,29 @@ std::string archipelago_wait_docstring()
 
 Block until all evolutions have finished.
 
-This method will call :func:`pygmo.island.wait()` on all the islands of the archipelago.
+This method will call :func:`pygmo.island.wait()` on all the islands of the archipelago. Exceptions thrown by island
+evolutions can be re-raised via :func:`~pygmo.archipelago.wait_check()`: they will **not** be re-thrown by this method.
+Also, contrary to :func:`~pygmo.archipelago.wait_check()`, this method will **not** reset the status of the archipelago:
+after a call to :func:`~pygmo.archipelago.wait()`, the :attr:`~pygmo.archipelago.status` attribute will
+always return either :attr:`pygmo.evolve_status.idle` or :attr:`pygmo.evolve_status.idle_error`.
 
 )";
 }
 
-std::string archipelago_get_docstring()
+std::string archipelago_wait_check_docstring()
 {
-    return R"(get()
+    return R"(wait_check()
 
 Block until all evolutions have finished and raise the first exception that was encountered.
 
-This method will call :func:`pygmo.island.get()` on all the islands of the archipelago.
-If an invocation of :func:`pygmo.island.get()` raises an exception, then on the remaining
-islands :func:`pygmo.island.wait()` will be called instead, and the raised exception will be re-raised
-by this method.
+This method will call :func:`pygmo.island.wait_check()` on all the islands of the archipelago (following
+the order in which the islands were inserted into the archipelago).
+The first exception raised by :func:`pygmo.island.wait_check()` will be re-raised by this method,
+and all the exceptions thrown by the other calls to :func:`pygmo.island.wait_check()` will be ignored.
+
+Note that :func:`~pygmo.archipelago.wait_check()` resets the status of the archipelago: after a call to
+:func:`~pygmo.archipelago.wait_check()`, the :attr:`~pygmo.archipelago.status` attribute will
+always return :attr:`pygmo.evolve_status.idle`.
 
 Raises:
     unspecified: any exception thrown by any evolution task queued in the archipelago's
@@ -4019,11 +4111,11 @@ of the solver (e.g., the stopping criteria) can be configured via class attribut
 stopping criteria can be active at the same time: the optimisation will stop as soon as at least one stopping criterion
 is satisfied. By default, only the ``xtol_rel`` stopping criterion is active (see :attr:`~pygmo.nlopt.xtol_rel`).
 
-All NLopt solvers support only single-objective optimisation, and, as usual in pagmo, minimisation
+All NLopt solvers support only single-objective optimisation, and, as usual in pygmo, minimisation
 is always assumed. The gradient-based algorithms require the optimisation problem to provide a gradient.
-Some solvers support equality and/or inequality constaints.
+Some solvers support equality and/or inequality constraints.
 
-In order to support pagmo's population-based optimisation model, the ``evolve()`` method will select
+In order to support pygmo's population-based optimisation model, the ``evolve()`` method will select
 a single individual from the input :class:`~pygmo.population` to be optimised by the NLopt solver.
 If the optimisation produces a better individual (as established by :func:`~pygmo.compare_fc()`),
 the optimised individual will be inserted back into the population.
@@ -4032,7 +4124,7 @@ and :attr:`~pygmo.nlopt.replacement` attributes.
 
 .. note::
 
-   This user-defined algorithm is available only if pagmo was compiled with the ``PAGMO_WITH_NLOPT`` option
+   This user-defined algorithm is available only if pygmo was compiled with the ``PAGMO_WITH_NLOPT`` option
    enabled (see the :ref:`installation instructions <install>`).
 
 .. seealso::
@@ -4266,7 +4358,7 @@ Raises:
 )";
 }
 
-std::string nlopt_selection_docstring()
+std::string bls_selection_docstring(const std::string &algo)
 {
     return R"(Individual selection policy.
 
@@ -4279,7 +4371,8 @@ If the attribute is a string, it must be one of ``"best"``, ``"worst"`` and ``"r
 * ``"worst"`` will select the worst individual in the population,
 * ``"random"`` will randomly choose one individual in the population.
 
-:func:`~pygmo.nlopt.set_random_sr_seed()` can be used to seed the random number generator
+:func:`~pygmo.)"
+           + algo + R"(.set_random_sr_seed()` can be used to seed the random number generator
 used by the ``"random"`` policy.
 
 If the attribute is an integer, it represents the index (in the population) of the individual that is selected
@@ -4298,7 +4391,7 @@ Raises:
 )";
 }
 
-std::string nlopt_replacement_docstring()
+std::string bls_replacement_docstring(const std::string &algo)
 {
     return R"(Individual replacement policy.
 
@@ -4311,7 +4404,8 @@ If the attribute is a string, it must be one of ``"best"``, ``"worst"`` and ``"r
 * ``"worst"`` will select the worst individual in the population,
 * ``"random"`` will randomly choose one individual in the population.
 
-:func:`~pygmo.nlopt.set_random_sr_seed()` can be used to seed the random number generator
+:func:`~pygmo.)"
+           + algo + R"(.set_random_sr_seed()` can be used to seed the random number generator
 used by the ``"random"`` policy.
 
 If the attribute is an integer, it represents the index (in the population) of the individual that will be
@@ -4330,7 +4424,7 @@ Raises:
 )";
 }
 
-std::string nlopt_set_random_sr_seed_docstring()
+std::string bls_set_random_sr_seed_docstring(const std::string &algo)
 {
     return R"(set_random_sr_seed(seed)
 
@@ -4338,8 +4432,10 @@ Set the seed for the ``"random"`` selection/replacement policies.
 
 Args:
     seed (``int``): the value that will be used to seed the random number generator used by the ``"random"``
-      election/replacement policies (see :attr:`~pygmo.nlopt.selection` and
-      :attr:`~pygmo.nlopt.replacement`)
+      election/replacement policies (see :attr:`~pygmo.)"
+           + algo + R"(.selection` and
+      :attr:`~pygmo.)"
+           + algo + R"(.replacement`)
 
 Raises:
     OverflowError: if the attribute is set to an integer which is negative or too large
@@ -4452,6 +4548,679 @@ Raises:
 
 See also the docs of the C++ class :cpp:class:`pagmo::sea`.
 
+)";
+}
+
+std::string sea_get_log_docstring()
+{
+    return R"(get_log()
+
+Returns a log containing relevant parameters recorded during the last call to ``evolve()`` and printed to screen. 
+The log frequency depends on the verbosity parameter (by default nothing is logged) which can be set calling
+the method :func:`~pygmo.algorithm.set_verbosity()` on an :class:`~pygmo.algorithm` constructed with a
+:class:`~pygmo.sea`. 
+A verbosity larger than 1 will produce a log with one entry each verbosity fitness evaluations.
+A verbosity equal to 1 will produce a log woth one entry at each improvement of the fitness.
+
+Returns:
+    ``list`` of ``tuples``: at each logged epoch, the values ``Gen``, ``Fevals``, ``Best``, ``Improvement``, ``Mutations``
+
+    ``Gen`` (``int``), generation.
+    ``Fevals`` (``int``), number of functions evaluation made.
+    ``Best`` (``float``), the best fitness function found so far.
+    ``Improvement`` (``float``), improvement made by the last mutation.
+    ``Mutations`` (``float``), number of mutated components for the decision vector.
+
+Examples:
+    >>> from pygmo import *
+    >>> algo = algorithm(sea(500))
+    >>> algo.set_verbosity(50)
+    >>> prob = problem(schwefel(dim = 20))
+    >>> pop = population(prob, 20)
+    >>> pop = algo.evolve(pop) # doctest: +SKIP
+    Gen:        Fevals:          Best:   Improvement:     Mutations:
+       1              1        6363.44        2890.49              2
+    1001           1001        1039.92       -562.407              3
+    2001           2001        358.966         -632.6              2
+    3001           3001         106.08       -995.927              3
+    4001           4001         83.391         -266.8              1
+    5001           5001        62.4994       -1018.38              3
+    6001           6001        39.2851       -732.695              2
+    7001           7001        37.2185       -518.847              1
+    8001           8001        20.9452        -450.75              1
+    9001           9001        17.9193       -270.679              1
+    >>> uda = algo.extract(sea)
+    >>> uda.get_log() # doctest: +SKIP
+    [(1, 1, 6363.442036625835, 2890.4854414320716, 2), (1001, 1001, ...
+
+See also the docs of the relevant C++ method :cpp:func:`pagmo::sea::get_log()`.
+)";
+}
+
+std::string sga_docstring()
+{
+    return R"(__init__(gen = 1, cr = .90, eta_c = 1., m = 0.02, param_m = 1., param_s = 2, crossover = "exponential", mutation = "polynomial", selection = "tournament", int_dim = 0, seed = random)
+
+A Simple Genetic Algorithm
+
+.. versionadded:: 2.2
+
+Approximately during the same decades as Evolutionary Strategies (see :class:`~pygmo.sea`) were studied, 
+a different group led by John Holland, and later by his student David Goldberg, introduced and
+studied an algorithmic framework called "genetic algorithms" that were, essentially, leveraging on
+the same idea but introducing also crossover as a genetic operator. This led to a few decades of
+confusion and discussions on what was an evolutionary startegy and what a genetic algorithm and on
+whether the crossover was a useful operator or mutation only algorithms were to be preferred.
+
+In pygmo we provide a rather classical implementation of a genetic algorithm, letting the user choose between
+selected crossover types, selection schemes and mutation types.
+
+The pseudo code of our version is:
+
+.. code-block:: none
+
+   > Start from a population (pop) of dimension N
+   > while i < gen
+   > > Selection: create a new population (pop2) with N individuals selected from pop (with repetition allowed)
+   > > Crossover: create a new population (pop3) with N individuals obtained applying crossover to pop2
+   > > Mutation:  create a new population (pop4) with N individuals obtained applying mutation to pop3
+   > > Evaluate all new chromosomes in pop4
+   > > Reinsertion: set pop to contain the best N individuals taken from pop and pop4
+
+The various blocks of pygmo genetic algorithm are listed below:
+
+*Selection*: two selection methods are provided: ``tournament`` and ``truncated``. ``Tournament`` selection works by
+selecting each offspring as the one having the minimal fitness in a random group of size *param_s*. The ``truncated``
+selection, instead, works selecting the best *param_s* chromosomes in the entire population over and over.
+We have deliberately not implemented the popular roulette wheel selection as we are of the opinion that such
+a system does not generalize much being highly sensitive to the fitness scaling.
+
+*Crossover*: four different crossover schemes are provided:``single``, ``exponential``, ``binomial``, ``sbx``. The
+``single`` point crossover, works selecting a random point in the parent chromosome and, with probability *cr*, inserting the
+partner chromosome thereafter. The ``exponential`` crossover is taken from the algorithm differential evolution,
+implemented, in pygmo, as :class:`~pygmo.de`. It essentially selects a random point in the parent chromosome and inserts,
+in each successive gene, the partner values with probability  *cr* up to when it stops. The binomial crossover
+inserts each gene from the partner with probability *cr*. The simulated binary crossover (called ``sbx``), is taken
+from the NSGA-II algorithm, implemented in pygmo as :class:`~pygmo.nsga2`, and makes use of an additional parameter called
+distribution index *eta_c*.
+
+*Mutation*: three different mutations schemes are provided: ``uniform``, ``gaussian`` and ``polynomial``. Uniform mutation
+simply randomly samples from the bounds. Gaussian muattion samples around each gene using a normal distribution
+with standard deviation proportional to the *param_m* and the bounds width. The last scheme is the ``polynomial``
+mutation from Deb.
+
+*Reinsertion*: the only reinsertion strategy provided is what we call pure elitism. After each generation
+all parents and children are put in the same pool and only the best are passed to the next generation.
+ 
+.. note:
+
+This algorithm will work only for box bounded problems.
+
+.. note:
+
+Specifying the parameter *int_dim* a part of the decision vector (at the end) will be treated as integers
+This means that all genetic operators are guaranteed to produce integer decision vectors in the specified bounds.
+The various mutation and crossover strategies will do different things on an integer gene or a real valued one.
+
+Args:
+    gen (``int``): number of generations.
+    cr (``float``): crossover probability.
+    eta_c (``float``): distribution index for ``sbx`` crossover. This parameter is inactive if other types of crossover are selected.
+    m (``float``): mutation probability.
+    param_m (``float``): distribution index (``polynomial`` mutation), gaussian width (``gaussian`` mutation) or inactive (``uniform`` mutation)
+    param_s (``float``): the number of best individuals to use in "truncated" selection or the size of the tournament in ``tournament`` selection.
+    crossover (``str``): the crossover strategy. One of ``exponential``, ``binomial``, ``single`` or ``sbx``
+    mutation (``str``): the mutation strategy. One of ``gaussian``, ``polynomial`` or ``uniform``.
+    selection (``str``): the selection strategy. One of ``tournament``, "truncated".
+    int_dim (``int``): the number of element in the chromosome to be treated as integers.
+    seed (``int``): seed used by the internal random number generator
+
+Raises:
+    OverflowError: if *gen* or *seed* or *int_dim* are negative or greater than an implementation-defined value
+    ValueError: if *cr* is not in [0,1], if *eta_c* is not in [1,100], if *m* is not in [0,1], input_f *mutation* 
+      is not one of ``gaussian``, ``uniform`` or ``polynomial``, if *selection* not one of "roulette", 
+      "truncated" or *crossover* is not one of ``exponential``, ``binomial``, ``sbx``, ``single``, if *param_m* is
+      not in [0,1] and *mutation* is not ``polynomial``, if *mutation* is not in [1,100] and *mutation* is ``polynomial``.
+    unspecified: any exception thrown by failures at the intersection between C++ and Python
+      (e.g., type conversion errors, mismatched function signatures, etc.)
+
+See also the docs of the C++ class :cpp:class:`pagmo::sga`.
+)";
+}
+
+std::string sga_get_log_docstring()
+{
+    return R"(get_log()
+
+Returns a log containing relevant parameters recorded during the last call to ``evolve()`` and printed to screen. 
+The log frequency depends on the verbosity parameter (by default nothing is logged) which can be set calling
+the method :func:`~pygmo.algorithm.set_verbosity()` on an :class:`~pygmo.algorithm` constructed with a
+:class:`~pygmo.sga`. 
+A verbosity larger than 1 will produce a log with one entry each verbosity fitness evaluations.
+A verbosity equal to 1 will produce a log woth one entry at each improvement of the fitness.
+
+Returns:
+    ``list`` of ``tuples``: at each logged epoch, the values ``Gen``, ``Fevals``, ``Best``, ``Improvement``
+
+    ``Gen`` (``int``), generation.
+    ``Fevals`` (``int``), number of functions evaluation made.
+    ``Best`` (``float``), the best fitness function found so far.
+    ``Improvement`` (``float``), improvement made by the last generation.
+
+Examples:
+    >>> from pygmo import *
+    >>> algo = algorithm(sga(gen = 500))
+    >>> algo.set_verbosity(50)
+    >>> prob = problem(schwefel(dim = 20))
+    >>> pop = population(prob, 20)
+    >>> pop = algo.evolve(pop) # doctest: +SKIP
+    Gen:        Fevals:          Best:   Improvement:     Mutations:
+       1              1        6363.44        2890.49              2
+    1001           1001        1039.92       -562.407              3
+    2001           2001        358.966         -632.6              2
+    3001           3001         106.08       -995.927              3
+    4001           4001         83.391         -266.8              1
+    5001           5001        62.4994       -1018.38              3
+    6001           6001        39.2851       -732.695              2
+    7001           7001        37.2185       -518.847              1
+    8001           8001        20.9452        -450.75              1
+    9001           9001        17.9193       -270.679              1
+    >>> uda = algo.extract(sea)
+    >>> uda.get_log() # doctest: +SKIP
+    [(1, 1, 6363.442036625835, 2890.4854414320716, 2), (1001, 1001, ...
+
+See also the docs of the relevant C++ method :cpp:func:`pagmo::sga::get_log()`.
+)";
+}
+
+std::string ipopt_docstring()
+{
+    return R"(__init__()
+
+Ipopt.
+
+.. versionadded:: 2.2
+
+This class is a user-defined algorithm (UDA) that wraps the Ipopt (Interior Point OPTimizer) solver,
+a software package for large-scale nonlinear optimization. Ipopt is a powerful solver that
+is able to handle robustly and efficiently constrained nonlinear opimization problems at high dimensionalities.
+
+Ipopt supports only single-objective minimisation, and it requires the availability of the gradient in the
+optimisation problem. If possible, for best results the Hessians should be provided as well (but Ipopt
+can estimate numerically the Hessians if needed).
+
+In order to support pygmo's population-based optimisation model, the ``evolve()`` method will select
+a single individual from the input :class:`~pygmo.population` to be optimised.
+If the optimisation produces a better individual (as established by :func:`~pygmo.compare_fc()`),
+the optimised individual will be inserted back into the population. The selection and replacement strategies
+can be configured via the :attr:`~pygmo.ipopt.selection` and :attr:`~pygmo.ipopt.replacement` attributes.
+
+Ipopt supports a large amount of options for the configuration of the optimisation run. The options
+are divided into three categories:
+
+* *string* options (i.e., the type of the option is ``str``),
+* *integer* options (i.e., the type of the option is ``int``),
+* *numeric* options (i.e., the type of the option is ``float``).
+
+The full list of options is available on the `Ipopt website <https://www.coin-or.org/Ipopt/documentation/node40.html>`_.
+:class:`pygmo.ipopt` allows to configure any Ipopt option via methods such as :func:`~pygmo.ipopt.set_string_options()`,
+:func:`~pygmo.ipopt.set_string_option()`, :func:`~pygmo.ipopt.set_integer_options()`, etc., which need to be used before
+invoking the ``evolve()`` method.
+
+If the user does not set any option, :class:`pygmo.ipopt` use Ipopt's default values for the options (see the
+`documentation <https://www.coin-or.org/Ipopt/documentation/node40.html>`_), with the following
+modifications:
+
+* if the ``"print_level"`` integer option is **not** set by the user, it will be set to 0 by :class:`pygmo.ipopt` (this will
+  suppress most screen output produced by the solver - note that we support an alternative form of logging via
+  the :func:`pygmo.algorithm.set_verbosity()` machinery);
+* if the ``"hessian_approximation"`` string option is **not** set by the user and the optimisation problem does
+  **not** provide the Hessians, then the option will be set to ``"limited-memory"`` by :class:`pygmo.ipopt`. This makes it
+  possible to optimise problems without Hessians out-of-the-box (i.e., Ipopt will approximate numerically the
+  Hessians for you);
+* if the ``"constr_viol_tol"`` numeric option is **not** set by the user and the optimisation problem is constrained,
+  then :class:`pygmo.ipopt` will compute the minimum value ``min_tol`` in the vector returned by :attr:`pygmo.problem.c_tol`
+  for the optimisation problem at hand. If ``min_tol`` is nonzero, then the ``"constr_viol_tol"`` Ipopt option will
+  be set to ``min_tol``, otherwise the default Ipopt value (1E-4) will be used for the option. This ensures that,
+  if the constraint tolerance is not explicitly set by the user, a solution deemed feasible by Ipopt is also
+  deemed feasible by pygmo (but the opposite is not necessarily true).
+
+.. note::
+
+   This user-defined algorithm is available only if pygmo was compiled with the ``PAGMO_WITH_IPOPT`` option
+   enabled (see the :ref:`installation instructions <install>`).
+
+.. note::
+
+   Ipopt is not thread-safe, and thus it cannot be used in a :class:`pygmo.thread_island`.
+
+.. seealso::
+
+   https://projects.coin-or.org/Ipopt.
+
+See also the docs of the C++ class :cpp:class:`pagmo::ipopt`.
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_numeric_option("tol",1E-9) # Change the relative convergence tolerance
+    >>> ip.get_numeric_options() # doctest: +SKIP
+    {'tol': 1e-09}
+    >>> algo = algorithm(ip)
+    >>> algo.set_verbosity(1)
+    >>> prob = problem(luksan_vlcek1(20))
+    >>> prob.c_tol = [1E-6] * 18 # Set constraints tolerance to 1E-6
+    >>> pop = population(prob, 20)
+    >>> pop = algo.evolve(pop) # doctest: +SKIP
+    <BLANKLINE>
+    ******************************************************************************
+    This program contains Ipopt, a library for large-scale nonlinear optimization.
+    Ipopt is released as open source code under the Eclipse Public License (EPL).
+            For more information visit http://projects.coin-or.org/Ipopt
+    ******************************************************************************
+    <BLANKLINE>
+    <BLANKLINE>
+    objevals:        objval:      violated:    viol. norm:
+            1         201174             18         1075.3 i
+            2         209320             18        691.814 i
+            3        36222.3             18        341.639 i
+            4        11158.1             18        121.097 i
+            5        4270.38             18        46.4742 i
+            6        2054.03             18        20.7306 i
+            7        705.959             18        5.43118 i
+            8        37.8304             18        1.52099 i
+            9        2.89066             12       0.128862 i
+           10       0.300807              3      0.0165902 i
+           11     0.00430279              3    0.000496496 i
+           12    7.54121e-06              2    9.70735e-06 i
+           13    4.34249e-08              0              0
+           14    3.71925e-10              0              0
+           15    3.54406e-13              0              0
+           16    2.37071e-18              0              0
+    <BLANKLINE>
+    Optimisation return status: Solve_Succeeded (value = 0)
+    <BLANKLINE>
+)";
+}
+
+std::string ipopt_get_log_docstring()
+{
+    return R"(get_log()
+
+Optimisation log.
+
+The optimisation log is a collection of log data lines. A log data line is a tuple consisting of:
+
+* the number of objective function evaluations made so far,
+* the objective function value for the current decision vector,
+* the number of constraints violated by the current decision vector,
+* the constraints violation norm for the current decision vector,
+* a boolean flag signalling the feasibility of the current decision vector.
+
+Returns:
+    ``list``: the optimisation log
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+.. warning::
+
+   The number of constraints violated, the constraints violation norm and the feasibility flag stored in the log
+   are all determined via the facilities and the tolerances specified within :class:`pygmo.problem`. That
+   is, they might not necessarily be consistent with Ipopt's notion of feasibility. See the explanation
+   of how the ``"constr_viol_tol"`` numeric option is handled in :class:`pygmo.ipopt`.
+
+.. note::
+
+   Ipopt supports its own logging format and protocol, including the ability to print to screen and write to file.
+   Ipopt's screen logging is disabled by default (i.e., the Ipopt verbosity setting is set to 0 - see
+   :class:`pygmo.ipopt`). On-screen logging can be enabled via the ``"print_level"`` string option.
+
+)";
+}
+
+std::string ipopt_get_last_opt_result_docstring()
+{
+    return R"(get_last_opt_result()
+
+Get the result of the last optimisation.
+
+Returns:
+    ``int``: the Ipopt return code for the last optimisation run, or ``Ipopt::Solve_Succeeded`` if no optimisations have been run yet
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.get_last_opt_result()
+    0
+
+)";
+}
+
+std::string ipopt_set_string_option_docstring()
+{
+    return R"(set_string_option(name, value)
+
+Set string option.
+
+This method will set the optimisation string option *name* to *value*.
+The optimisation options are passed to the Ipopt API when calling the ``evolve()`` method.
+
+Args:
+    name (``str``): the name of the option
+    value (``str``): the value of the option
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_string_option("hessian_approximation","limited-memory")
+    >>> algorithm(ip) # doctest: +NORMALIZE_WHITESPACE
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            String options: {hessian_approximation : limited-memory}
+)";
+}
+
+std::string ipopt_set_string_options_docstring()
+{
+    return R"(set_string_options(opts)
+
+Set string options.
+
+This method will set the optimisation string options contained in *opts*.
+It is equivalent to calling :func:`~pygmo.ipopt.set_string_option()` passing all the name-value pairs in *opts*
+as arguments.
+
+Args:
+    opts (``dict`` of ``str``-``str`` pairs): the name-value map that will be used to set the options
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_string_options({"hessian_approximation":"limited-memory", "limited_memory_initialization":"scalar1"})
+    >>> algorithm(ip) # doctest: +NORMALIZE_WHITESPACE
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            String options: {hessian_approximation : limited-memory,  limited_memory_initialization : scalar1}
+
+)";
+}
+
+std::string ipopt_get_string_options_docstring()
+{
+    return R"(get_string_options()
+
+Get string options.
+
+Returns:
+    ``dict`` of ``str``-``str`` pairs: a name-value dictionary of optimisation string options
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_string_option("hessian_approximation","limited-memory")
+    >>> ip.get_string_options()
+    {'hessian_approximation': 'limited-memory'}
+
+)";
+}
+
+std::string ipopt_reset_string_options_docstring()
+{
+    return R"(reset_string_options()
+
+Clear all string options.
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_string_option("hessian_approximation","limited-memory")
+    >>> ip.get_string_options()
+    {'hessian_approximation': 'limited-memory'}
+    >>> ip.reset_string_options()
+    >>> ip.get_string_options()
+    {}
+
+)";
+}
+
+std::string ipopt_set_integer_option_docstring()
+{
+    return R"(set_integer_option(name, value)
+
+Set integer option.
+
+This method will set the optimisation integer option *name* to *value*.
+The optimisation options are passed to the Ipopt API when calling the ``evolve()`` method.
+
+Args:
+    name (``str``): the name of the option
+    value (``int``): the value of the option
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_integer_option("print_level",3)
+    >>> algorithm(ip) # doctest: +NORMALIZE_WHITESPACE
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            Integer options: {print_level : 3}
+
+)";
+}
+
+std::string ipopt_set_integer_options_docstring()
+{
+    return R"(set_integer_options(opts)
+
+Set integer options.
+
+This method will set the optimisation integer options contained in *opts*.
+It is equivalent to calling :func:`~pygmo.ipopt.set_integer_option()` passing all the name-value pairs in *opts*
+as arguments.
+
+Args:
+    opts (``dict`` of ``str``-``int`` pairs): the name-value map that will be used to set the options
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_integer_options({"filter_reset_trigger":4, "print_level":3})
+    >>> algorithm(ip) # doctest: +NORMALIZE_WHITESPACE
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            Integer options: {filter_reset_trigger : 4,  print_level : 3}
+
+)";
+}
+
+std::string ipopt_get_integer_options_docstring()
+{
+    return R"(get_integer_options()
+
+Get integer options.
+
+Returns:
+    ``dict`` of ``str``-``int`` pairs: a name-value dictionary of optimisation integer options
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_integer_option("print_level",3)
+    >>> ip.get_integer_options()
+    {'print_level': 3}
+
+)";
+}
+
+std::string ipopt_reset_integer_options_docstring()
+{
+    return R"(reset_integer_options()
+
+Clear all integer options.
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_integer_option("print_level",3)
+    >>> ip.get_integer_options()
+    {'print_level': 3}
+    >>> ip.reset_integer_options()
+    >>> ip.get_integer_options()
+    {}
+
+)";
+}
+
+std::string ipopt_set_numeric_option_docstring()
+{
+    return R"(set_numeric_option(name, value)
+
+Set numeric option.
+
+This method will set the optimisation numeric option *name* to *value*.
+The optimisation options are passed to the Ipopt API when calling the ``evolve()`` method.
+
+Args:
+    name (``str``): the name of the option
+    value (``float``): the value of the option
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_numeric_option("tol",1E-6)
+    >>> algorithm(ip) # doctest: +SKIP
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            Numeric options: {tol : 1E-6}
+
+)";
+}
+
+std::string ipopt_set_numeric_options_docstring()
+{
+    return R"(set_numeric_options(opts)
+
+Set numeric options.
+
+This method will set the optimisation numeric options contained in *opts*.
+It is equivalent to calling :func:`~pygmo.ipopt.set_numeric_option()` passing all the name-value pairs in *opts*
+as arguments.
+
+Args:
+    opts (``dict`` of ``str``-``float`` pairs): the name-value map that will be used to set the options
+
+Raises:
+    unspecified: any exception thrown by failures at the intersection between C++ and Python (e.g.,
+      type conversion errors, mismatched function signatures, etc.)
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_numeric_options({"tol":1E-4, "constr_viol_tol":1E-3})
+    >>> algorithm(ip) # doctest: +SKIP
+    Algorithm name: Ipopt [deterministic]
+            Thread safety: none
+    <BLANKLINE>
+    Extra info:
+            Last optimisation return code: Solve_Succeeded (value = 0)
+            Verbosity: 0
+            Individual selection policy: best
+            Individual replacement policy: best
+            Numeric options: {constr_viol_tol : 1E-3,  tol : 1E-4}
+
+)";
+}
+
+std::string ipopt_get_numeric_options_docstring()
+{
+    return R"(get_numeric_options()
+
+Get numeric options.
+
+Returns:
+    ``dict`` of ``str``-``float`` pairs: a name-value dictionary of optimisation numeric options
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_numeric_option("tol",1E-4)
+    >>> ip.get_numeric_options() # doctest: +SKIP
+    {'tol': 1E-4}
+
+)";
+}
+
+std::string ipopt_reset_numeric_options_docstring()
+{
+    return R"(reset_numeric_options()
+
+Clear all numeric options.
+
+Examples:
+    >>> from pygmo import *
+    >>> ip = ipopt()
+    >>> ip.set_numeric_option("tol",1E-4)
+    >>> ip.get_numeric_options() # doctest: +SKIP
+    {'tol': 1E-4}
+    >>> ip.reset_numeric_options()
+    >>> ip.get_numeric_options()
+    {}
 )";
 }
 

@@ -37,12 +37,12 @@ see https://www.gnu.org/licenses/. */
 #include <tuple>
 #include <utility> //std::swap
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../utils/generic.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>
 
 namespace pagmo
 {
@@ -59,8 +59,8 @@ std::vector<unsigned int> de1220_statics<T>::allowed_variants = {2u, 3u, 7u, 10u
 
 /// A Differential Evolution Algorithm (1220, or pDE: our own DE flavour!!)
 /**
-* \image html original.jpg "Our own DE flavour".
-*
+ * \image html original.jpg "Our own DE flavour".
+ *
  * Differential Evolution (pagmo::de, pagmo::sade) is one of the best meta-heuristics in PaGMO, so we
  * dared to propose our own algoritmic variant we call DE 1220 (a.k.a. pDE as in pagmo DE). Our variant
  * makes use of the pagmo::sade adaptation schemes for CR and F and adds self-adaptation for
@@ -82,10 +82,24 @@ std::vector<unsigned int> de1220_statics<T>::allowed_variants = {2u, 3u, 7u, 10u
  * where \f$\tau\f$ is set to be 0.1, \f$random\f$ selects a random mutation variant and \f$r_i\f$ is a random
  * uniformly distributed number in [0, 1]
  *
- * **NOTE** The feasibility correction, that is the correction applied to an allele when some mutation puts it outside
- * the allowed box-bounds, is here done by creating a random number in the bounds.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * See: pagmo::de, pagmo::sade For other available algorithms based on Differential Evolution
+ *    The feasibility correction, that is the correction applied to an allele when some mutation puts it outside
+ *    the allowed box-bounds, is here done by creating a random number in the bounds.
+ *
+ * .. note::
+ *
+ *    The search range is defined relative to the box-bounds. Hence, unbounded problems
+ *    will produce an error.
+ *
+ *
+ * .. seealso::
+ *
+ *    :cpp:class:`pagmo::de`, :cpp:class:`pagmo::sade` For other available algorithms based on Differential Evolution
+ *
+ * \endverbatim
+ *
  */
 
 class de1220
@@ -158,8 +172,9 @@ public:
             }
         }
         if (variant_adptv < 1u || variant_adptv > 2u) {
-            pagmo_throw(std::invalid_argument, "The variant for self-adaptation mus be in [1,2], while a value of "
-                                                   + std::to_string(variant_adptv) + " was detected.");
+            pagmo_throw(std::invalid_argument,
+                        "The variant for self-adaptation mus be in [1,2], while a value of "
+                            + std::to_string(variant_adptv) + " was detected.");
         }
     }
 
@@ -191,12 +206,14 @@ public:
         // We start by checking that the problem is suitable for this
         // particular algorithm.
         if (prob.get_nc() != 0u) {
-            pagmo_throw(std::invalid_argument, "Non linear constraints detected in " + prob.get_name() + " instance. "
-                                                   + get_name() + " cannot deal with them");
+            pagmo_throw(std::invalid_argument,
+                        "Non linear constraints detected in " + prob.get_name() + " instance. " + get_name()
+                            + " cannot deal with them");
         }
         if (prob_f_dimension != 1u) {
-            pagmo_throw(std::invalid_argument, "Multiple objectives detected in " + prob.get_name() + " instance. "
-                                                   + get_name() + " cannot deal with them");
+            pagmo_throw(std::invalid_argument,
+                        "Multiple objectives detected in " + prob.get_name() + " instance. " + get_name()
+                            + " cannot deal with them");
         }
         if (prob.is_stochastic()) {
             pagmo_throw(std::invalid_argument,
@@ -207,8 +224,9 @@ public:
             return pop;
         }
         if (pop.size() < 7u) {
-            pagmo_throw(std::invalid_argument, get_name() + " needs at least 7 individuals in the population, "
-                                                   + std::to_string(pop.size()) + " detected");
+            pagmo_throw(std::invalid_argument,
+                        get_name() + " needs at least 7 individuals in the population, " + std::to_string(pop.size())
+                            + " detected");
         }
         // ---------------------------------------------------------------------------------------------------------
 
@@ -222,8 +240,8 @@ public:
         std::uniform_int_distribution<vector_double::size_type> c_idx(
             0u, dim - 1u); // to generate a random index in the chromosome
         std::uniform_int_distribution<vector_double::size_type> p_idx(0u, NP - 1u); // to generate a random index in pop
-        std::uniform_int_distribution<vector_double::size_type> v_idx(0u, m_allowed_variants.size()
-                                                                              - 1u); // to generate a random variant
+        std::uniform_int_distribution<vector_double::size_type> v_idx(
+            0u, m_allowed_variants.size() - 1u); // to generate a random variant
 
         // We extract from pop the chromosomes and fitness associated
         auto popold = pop.get_x();
@@ -683,9 +701,9 @@ public:
                     df = std::abs(pop.get_f()[worst_idx][0] - pop.get_f()[best_idx][0]);
                     // Every 50 lines print the column names
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15), "Best:",
-                              std::setw(15), "F:", std::setw(15), "CR:", std::setw(15), "Variant:", std::setw(15),
-                              "dx:", std::setw(15), std::setw(15), "df:", '\n');
+                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15),
+                              "Best:", std::setw(15), "F:", std::setw(15), "CR:", std::setw(15),
+                              "Variant:", std::setw(15), "dx:", std::setw(15), std::setw(15), "df:", '\n');
                     }
                     print(std::setw(7), gen, std::setw(15), prob.get_fevals() - fevals0, std::setw(15),
                           pop.get_f()[best_idx][0], std::setw(15), gbIterF, std::setw(15), gbIterCR, std::setw(15),

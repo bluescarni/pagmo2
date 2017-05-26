@@ -40,6 +40,9 @@ see https://www.gnu.org/licenses/. */
 #include <pagmo/algorithms/cstrs_self_adaptive.hpp>
 #include <pagmo/algorithms/de.hpp>
 #include <pagmo/algorithms/de1220.hpp>
+#if defined(PAGMO_WITH_IPOPT)
+#include <pagmo/algorithms/ipopt.hpp>
+#endif
 #include <pagmo/algorithms/mbh.hpp>
 #include <pagmo/algorithms/moead.hpp>
 #if defined(PAGMO_WITH_NLOPT)
@@ -49,6 +52,7 @@ see https://www.gnu.org/licenses/. */
 #include <pagmo/algorithms/pso.hpp>
 #include <pagmo/algorithms/sade.hpp>
 #include <pagmo/algorithms/sea.hpp>
+#include <pagmo/algorithms/sga.hpp>
 #include <pagmo/algorithms/simulated_annealing.hpp>
 #include <pagmo/archipelago.hpp>
 #include <pagmo/exceptions.hpp>

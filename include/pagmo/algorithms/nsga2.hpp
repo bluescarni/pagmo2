@@ -36,14 +36,14 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp" // needed for the cereal macro
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../problem.hpp"
-#include "../problems/decompose.hpp"
-#include "../rng.hpp"
-#include "../utils/multi_objective.hpp" // crowding_distance, etc..
+#include <pagmo/algorithm.hpp> // needed for the cereal macro
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/problems/decompose.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/multi_objective.hpp> // crowding_distance, etc..
 
 namespace pagmo
 {
@@ -86,8 +86,8 @@ public:
     * @throws std::invalid_argument if \p cr is not \f$ \in [0,1[\f$, \p m is not \f$ \in [0,1]\f$, \p eta_c is not in
     * [1,100[ or \p eta_m is not in [1,100[.
     */
-    nsga2(unsigned int gen = 1u, double cr = 0.95, double eta_c = 10., double m = 0.01, double eta_m = 50.,
-          vector_double::size_type int_dim = 0u, unsigned int seed = pagmo::random_device::next())
+    nsga2(unsigned gen = 1u, double cr = 0.95, double eta_c = 10., double m = 0.01, double eta_m = 50.,
+          vector_double::size_type int_dim = 0u, unsigned seed = pagmo::random_device::next())
         : m_gen(gen), m_cr(cr), m_eta_c(eta_c), m_m(m), m_eta_m(eta_m), m_int_dim(int_dim), m_e(seed), m_seed(seed),
           m_verbosity(0u), m_log()
     {
@@ -99,14 +99,14 @@ public:
             pagmo_throw(std::invalid_argument, "The mutation probability must be in the [0,1] range, while a value of "
                                                    + std::to_string(cr) + " was detected");
         }
-        if (eta_c < 1. || eta_c >= 100.) {
+        if (eta_c < 1. || eta_c > 100.) {
             pagmo_throw(std::invalid_argument,
-                        "The distribution index for crossover must be in [1, 100[, while a value of "
+                        "The distribution index for crossover must be in [1, 100], while a value of "
                             + std::to_string(eta_c) + " was detected");
         }
-        if (eta_m < 1. || eta_m >= 100.) {
+        if (eta_m < 1. || eta_m > 100.) {
             pagmo_throw(std::invalid_argument,
-                        "The distribution index for mutation must be in [1, 100[, while a value of "
+                        "The distribution index for mutation must be in [1, 100], while a value of "
                             + std::to_string(eta_m) + " was detected");
         }
     }
@@ -358,7 +358,7 @@ public:
         stream(ss, "\tGenerations: ", m_gen);
         stream(ss, "\n\tCrossover probability: ", m_cr);
         stream(ss, "\n\tDistribution index for crossover: ", m_eta_c);
-        stream(ss, "\n\\tMutation probability: ", m_m);
+        stream(ss, "\n\tMutation probability: ", m_m);
         stream(ss, "\n\tDistribution index for mutation: ", m_eta_m);
         stream(ss, "\n\tSize of the integer part: ", m_int_dim);
         stream(ss, "\n\tSeed: ", m_seed);

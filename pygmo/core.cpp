@@ -26,6 +26,15 @@ You should have received copies of the GNU General Public License and the
 GNU Lesser General Public License along with the PaGMO library.  If not,
 see https://www.gnu.org/licenses/. */
 
+#if defined(_MSC_VER)
+
+// Disable various warnings from MSVC.
+#pragma warning(disable : 4275)
+#pragma warning(disable : 4996)
+#pragma warning(disable : 4244)
+
+#endif
+
 #include "python_includes.hpp"
 
 // See: https://docs.scipy.org/doc/numpy/reference/c-api.array.html#importing-the-api
@@ -33,15 +42,6 @@ see https://www.gnu.org/licenses/. */
 // with the correct #defines.
 #define PY_ARRAY_UNIQUE_SYMBOL pygmo_ARRAY_API
 #include "numpy.hpp"
-
-#if defined(_MSC_VER)
-
-// Disable various warnings from MSVC.
-#pragma warning(push, 0)
-#pragma warning(disable : 4275)
-#pragma warning(disable : 4996)
-
-#endif
 
 #include <algorithm>
 #include <boost/numeric/conversion/cast.hpp>
@@ -101,12 +101,6 @@ see https://www.gnu.org/licenses/. */
 #include "object_serialization.hpp"
 #include "problem.hpp"
 #include "pygmo_classes.hpp"
-
-#if defined(_MSC_VER)
-
-#pragma warning(pop)
-
-#endif
 
 // This is necessary because the NumPy macro import_array() has different return values
 // depending on the Python version.
@@ -324,13 +318,13 @@ BOOST_PYTHON_MODULE(core)
     }
     wrap_import_array();
 
-    // Check that dill is available.
+    // Check that cloudpickle is available.
     try {
-        bp::import("dill");
+        bp::import("cloudpickle");
     } catch (...) {
         pygmo::builtin().attr("print")(
-            u8"\033[91m====ERROR====\nThe dill module could not be imported. "
-            u8"Please make sure that dill has been correctly installed.\n====ERROR====\033[0m");
+            u8"\033[91m====ERROR====\nThe cloudpickle module could not be imported. "
+            u8"Please make sure that cloudpickle has been correctly installed.\n====ERROR====\033[0m");
         pygmo_throw(PyExc_ImportError, "");
     }
 
@@ -373,6 +367,13 @@ BOOST_PYTHON_MODULE(core)
 
     // The thread_safety enum.
     bp::enum_<thread_safety>("_thread_safety").value("none", thread_safety::none).value("basic", thread_safety::basic);
+
+    // The evolve_status enum.
+    bp::enum_<evolve_status>("_evolve_status")
+        .value("idle", evolve_status::idle)
+        .value("busy", evolve_status::busy)
+        .value("idle_error", evolve_status::idle_error)
+        .value("busy_error", evolve_status::busy_error);
 
     // Expose utility functions for testing purposes.
     bp::def("_builtin", &pygmo::builtin);
@@ -777,9 +778,8 @@ BOOST_PYTHON_MODULE(core)
         .def("__deepcopy__", &pygmo::generic_deepcopy_wrapper<island>)
         .def("evolve", lcast([](island &isl, unsigned n) { isl.evolve(n); }), pygmo::island_evolve_docstring().c_str(),
              boost::python::arg("n") = 1u)
-        .def("busy", &island::busy, pygmo::island_busy_docstring().c_str())
         .def("wait", &island::wait, pygmo::island_wait_docstring().c_str())
-        .def("get", &island::get, pygmo::island_get_docstring().c_str())
+        .def("wait_check", &island::wait_check, pygmo::island_wait_check_docstring().c_str())
         .def("get_population", &island::get_population, pygmo::island_get_population_docstring().c_str())
         .def("get_algorithm", &island::get_algorithm, pygmo::island_get_algorithm_docstring().c_str())
         .def("set_population", &island::set_population, pygmo::island_set_population_docstring().c_str(),
@@ -792,6 +792,7 @@ BOOST_PYTHON_MODULE(core)
              pygmo::island_get_thread_safety_docstring().c_str())
         .def("get_name", &island::get_name, pygmo::island_get_name_docstring().c_str())
         .def("get_extra_info", &island::get_extra_info, pygmo::island_get_extra_info_docstring().c_str());
+    pygmo::add_property(island_class, "status", &island::status, pygmo::island_status_docstring().c_str());
 
     // Thread island.
     auto ti = pygmo::expose_island<thread_island>("thread_island", pygmo::thread_island_docstring().c_str());
@@ -807,9 +808,8 @@ BOOST_PYTHON_MODULE(core)
         .def("__len__", &archipelago::size)
         .def("evolve", lcast([](archipelago &archi, unsigned n) { archi.evolve(n); }),
              pygmo::archipelago_evolve_docstring().c_str(), boost::python::arg("n") = 1u)
-        .def("busy", &archipelago::busy, pygmo::archipelago_busy_docstring().c_str())
         .def("wait", &archipelago::wait, pygmo::archipelago_wait_docstring().c_str())
-        .def("get", &archipelago::get, pygmo::archipelago_get_docstring().c_str())
+        .def("wait_check", &archipelago::wait_check, pygmo::archipelago_wait_check_docstring().c_str())
         .def("__getitem__", lcast([](archipelago &archi, archipelago::size_type n) -> island & { return archi[n]; }),
              pygmo::archipelago_getitem_docstring().c_str(), bp::return_internal_reference<>())
         // NOTE: docs for push_back() are in the Python reimplementation.
@@ -833,4 +833,5 @@ BOOST_PYTHON_MODULE(core)
                  return retval;
              }),
              pygmo::archipelago_get_champions_x_docstring().c_str());
+    pygmo::add_property(archi_class, "status", &archipelago::status, pygmo::archipelago_status_docstring().c_str());
 }

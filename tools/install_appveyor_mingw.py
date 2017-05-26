@@ -109,8 +109,8 @@ if is_python_build:
     run_command(pinterp + ' get-pip.py --force-reinstall')
     # NOTE: at the moment we have troubles installing ipyparallel.
     # Just skip it.
-    # run_command(pip + ' install numpy dill ipyparallel')
-    run_command(pip + ' install numpy dill')
+    # run_command(pip + ' install numpy cloudpickle ipyparallel')
+    run_command(pip + ' install numpy cloudpickle')
     if is_release_build:
         run_command(pip + ' install twine')
 
@@ -143,7 +143,7 @@ run_command(r'mingw32-make install VERBOSE=1 -j2')
 if is_python_build:
     # Run the Python tests.
     run_command(
-        pinterp + r' -c "import pygmo; pygmo.test.run_test_suite()"')
+        pinterp + r' -c "import pygmo; pygmo.test.run_test_suite(1)"')
     # Build the wheel.
     import shutil
     os.chdir('wheel')
@@ -156,7 +156,7 @@ if is_python_build:
     os.environ['PATH'] = ORIGINAL_PATH
     run_command(pip + r' install dist\\' + os.listdir('dist')[0])
     run_command(
-        pinterp + r' -c "import pygmo; pygmo.test.run_test_suite()"', directory=r'c:\\')
+        pinterp + r' -c "import pygmo; pygmo.test.run_test_suite(1)"', directory=r'c:\\')
     if is_release_build:
         run_command(twine + r' upload -u ci4esa dist\\' +
                     os.listdir('dist')[0])

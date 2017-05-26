@@ -7,15 +7,18 @@ Pagmo & Pygmo
 =============
 
 .. image:: ../sphinx/docs/images/prob.png
+   :target: docs/problem_list.html
    :width: 15%
 
 .. image:: ../sphinx/docs/images/algo.png
+   :target: docs/algorithm_list.html
    :width: 15%
 
 .. image:: ../sphinx/docs/images/pop.png
    :width: 15%
 
 .. image:: ../sphinx/docs/images/island.png
+   :target: docs/island_list.html
    :width: 15%
 
 .. image:: ../sphinx/docs/images/archi.png
@@ -50,7 +53,19 @@ Contents:
 .. toctree::
    :maxdepth: 1
 
+   docs/algorithm_list
+   docs/problem_list
+   docs/island_list
+
+.. toctree::
+   :maxdepth: 1
+
    docs/cpp/cpp_docs
    docs/python/python_docs
    docs/python/tutorials/python_tut
 
+.. toctree::
+   :maxdepth: 1
+   
+   credits
+   changelog

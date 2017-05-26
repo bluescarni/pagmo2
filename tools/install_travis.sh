@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# Exit on error
-set -e
 # Echo each command
 set -x
 
@@ -10,47 +8,55 @@ if [[ "${PAGMO_BUILD}" != manylinux* ]]; then
 fi
 
 if [[ "${PAGMO_BUILD}" == "ReleaseGCC48" ]]; then
-    CXX=g++-4.8 CC=gcc-4.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DCMAKE_CXX_FLAGS="-fuse-ld=gold" ../;
+    CXX=g++-4.8 CC=gcc-4.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DCMAKE_CXX_FLAGS="-fuse-ld=gold" ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "DebugGCC48" ]]; then
-    CXX=g++-4.8 CC=gcc-4.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DCMAKE_CXX_FLAGS="-fsanitize=address -fuse-ld=gold" ../;
+    CXX=g++-4.8 CC=gcc-4.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DCMAKE_CXX_FLAGS="-fsanitize=address -fuse-ld=gold" ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "CoverageGCC5" ]]; then
-    CXX=g++-5 CC=gcc-5 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DCMAKE_CXX_FLAGS="--coverage -fuse-ld=gold" ../;
+    CXX=g++-5 CC=gcc-5 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DCMAKE_CXX_FLAGS="--coverage -fuse-ld=gold" ../;
     make -j2 VERBOSE=1;
     ctest;
     bash <(curl -s https://codecov.io/bash) -x gcov-5;
 elif [[ "${PAGMO_BUILD}" == "DebugGCC6" ]]; then
-    CXX=g++-6 CC=gcc-6 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DCMAKE_CXX_FLAGS="-fuse-ld=gold" ../;
+    CXX=g++-6 CC=gcc-6 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DCMAKE_CXX_FLAGS="-fuse-ld=gold" ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "DebugClang38" ]]; then
-    CXX=clang++-3.8 CC=clang-3.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes ../;
+    CXX=clang++-3.8 CC=clang-3.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "ReleaseClang38" ]]; then
-    CXX=clang++-3.8 CC=clang-3.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes ../;
+    CXX=clang++-3.8 CC=clang-3.8 cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "OSXDebug" ]]; then
-    CXX=clang++ CC=clang cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DCMAKE_CXX_FLAGS="-g0 -O2" ../;
+    CXX=clang++ CC=clang cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DCMAKE_CXX_FLAGS="-g0 -O2" ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == "OSXRelease" ]]; then
-    CXX=clang++ CC=clang cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes ../;
+    CXX=clang++ CC=clang cmake -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Release -DPAGMO_BUILD_TESTS=yes -DPAGMO_BUILD_TUTORIALS=yes -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes ../;
     make -j2 VERBOSE=1;
     ctest;
 elif [[ "${PAGMO_BUILD}" == Python* ]]; then
-    CXX=g++-4.8 CC=gcc-4.8 cmake -DCMAKE_INSTALL_PREFIX=$deps_dir -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_INSTALL_HEADERS=no -DPAGMO_BUILD_PYGMO=yes ../;
+    if [[ "${PAGMO_BUILD}" == Python3* ]]; then
+        export BP_LIB="libboost_python3.so"
+    else
+        export BP_LIB="libboost_python.so"
+    fi
+    CXX=g++-4.8 CC=gcc-4.8 cmake -DBoost_PYTHON_LIBRARY_RELEASE=$deps_dir/lib/$BP_LIB -DCMAKE_INSTALL_PREFIX=$deps_dir -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DPAGMO_INSTALL_HEADERS=no -DPAGMO_BUILD_PYGMO=yes ../;
     make install VERBOSE=1;
     ipcluster start --daemonize=True;
     # Give some time for the cluster to start up.
     sleep 20;
-    python -c "import pygmo; pygmo.test.run_test_suite()"
+    cd ../tools
+    python -c "import pygmo; pygmo.test.run_test_suite(1)"
+    python travis_additional_tests.py
+    cd ../build
     # At the moment conda has these packages only for Python 3.4. Install via pip instead.
-    pip install sphinx breathe requests[security] sphinx-bootstrap-theme;
+    pip install 'sphinx<1.6' breathe requests[security] sphinx-bootstrap-theme;
     # Run doxygen and check the output.
     cd ../doc/doxygen;
     export DOXYGEN_OUTPUT=`doxygen 2>&1 >/dev/null`;
@@ -112,12 +118,19 @@ elif [[ "${PAGMO_BUILD}" == Python* ]]; then
         fi
     done
 elif [[ "${PAGMO_BUILD}" == OSXPython* ]]; then
-    CXX=clang++ CC=clang cmake -DCMAKE_INSTALL_PREFIX=$deps_dir -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_INSTALL_HEADERS=no -DPAGMO_BUILD_PYGMO=yes -DCMAKE_CXX_FLAGS="-g0 -O2" ../;
+    if [[ "${PAGMO_BUILD}" == OSXPython3* ]]; then
+        export BP_LIB="libboost_python3.dylib"
+    else
+        export BP_LIB="libboost_python.dylib"
+    fi
+    CXX=clang++ CC=clang cmake -DBoost_PYTHON_LIBRARY_RELEASE=$deps_dir/lib/$BP_LIB -DCMAKE_INSTALL_PREFIX=$deps_dir -DCMAKE_PREFIX_PATH=$deps_dir -DCMAKE_BUILD_TYPE=Debug -DPAGMO_WITH_EIGEN3=yes -DPAGMO_WITH_NLOPT=yes -DPAGMO_WITH_IPOPT=yes -DPAGMO_INSTALL_HEADERS=no -DPAGMO_BUILD_PYGMO=yes -DCMAKE_CXX_FLAGS="-g0 -O2" ../;
     make install VERBOSE=1;
     ipcluster start --daemonize=True;
     # Give some time for the cluster to start up.
     sleep 20;
-    python -c "import pygmo; pygmo.test.run_test_suite()"
+    cd ../tools
+    python -c "import pygmo; pygmo.test.run_test_suite(1)"
+    python travis_additional_tests.py
 elif [[ "${PAGMO_BUILD}" == manylinux* ]]; then
     cd ..;
     docker pull ${DOCKER_IMAGE};

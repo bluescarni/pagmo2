@@ -26,6 +26,16 @@ You should have received copies of the GNU General Public License and the
 GNU Lesser General Public License along with the PaGMO library.  If not,
 see https://www.gnu.org/licenses/. */
 
+#if defined(_MSC_VER)
+
+// Disable various warnings from MSVC.
+#pragma warning(disable : 4275)
+#pragma warning(disable : 4996)
+#pragma warning(disable : 4503)
+#pragma warning(disable : 4244)
+
+#endif
+
 #include "python_includes.hpp"
 
 // See: https://docs.scipy.org/doc/numpy/reference/c-api.array.html#importing-the-api
@@ -35,27 +45,21 @@ see https://www.gnu.org/licenses/. */
 #define PY_ARRAY_UNIQUE_SYMBOL pygmo_ARRAY_API
 #include "numpy.hpp"
 
-#if defined(_MSC_VER)
-
-// Disable various warnings from MSVC.
-#pragma warning(push, 0)
-#pragma warning(disable : 4275)
-#pragma warning(disable : 4996)
-#pragma warning(disable : 4503)
-
-#endif
-
 #include <boost/any.hpp>
 #include <boost/python/args.hpp>
 #include <boost/python/default_call_policies.hpp>
+#include <boost/python/dict.hpp>
+#include <boost/python/extract.hpp>
 #include <boost/python/init.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/make_constructor.hpp>
 #include <boost/python/make_function.hpp>
 #include <boost/python/object.hpp>
 #include <boost/python/return_internal_reference.hpp>
+#include <boost/python/stl_iterator.hpp>
 #include <boost/python/str.hpp>
 #include <boost/python/tuple.hpp>
+#include <map>
 #include <string>
 #include <tuple>
 
@@ -69,6 +73,10 @@ see https://www.gnu.org/licenses/. */
 #include <pagmo/algorithms/cstrs_self_adaptive.hpp>
 #include <pagmo/algorithms/de.hpp>
 #include <pagmo/algorithms/de1220.hpp>
+#if defined(PAGMO_WITH_IPOPT)
+#include <IpTNLP.hpp>
+#include <pagmo/algorithms/ipopt.hpp>
+#endif
 #include <pagmo/algorithms/mbh.hpp>
 #include <pagmo/algorithms/moead.hpp>
 #if defined(PAGMO_WITH_NLOPT)
@@ -78,6 +86,7 @@ see https://www.gnu.org/licenses/. */
 #include <pagmo/algorithms/pso.hpp>
 #include <pagmo/algorithms/sade.hpp>
 #include <pagmo/algorithms/sea.hpp>
+#include <pagmo/algorithms/sga.hpp>
 #include <pagmo/algorithms/simulated_annealing.hpp>
 #include <pagmo/population.hpp>
 #include <pagmo/rng.hpp>
@@ -86,12 +95,6 @@ see https://www.gnu.org/licenses/. */
 #include "algorithm_exposition_suite.hpp"
 #include "common_utils.hpp"
 #include "docstrings.hpp"
-
-#if defined(_MSC_VER)
-
-#pragma warning(pop)
-
-#endif
 
 using namespace pagmo;
 namespace bp = boost::python;
@@ -128,6 +131,64 @@ struct tu_test_algorithm {
         return thread_safety::none;
     }
 };
+
+template <typename T>
+static inline void expose_not_population_based(bp::class_<T> &c, const std::string &algo_name)
+{
+    // Selection/replacement.
+    add_property(
+        c, "selection", lcast([](const T &n) -> bp::object {
+            auto s = n.get_selection();
+            if (boost::any_cast<std::string>(&s)) {
+                return bp::str(boost::any_cast<std::string>(s));
+            }
+            return bp::object(boost::any_cast<population::size_type>(s));
+        }),
+        lcast([](T &n, const bp::object &o) {
+            bp::extract<std::string> e_str(o);
+            if (e_str.check()) {
+                n.set_selection(e_str());
+                return;
+            }
+            bp::extract<population::size_type> e_idx(o);
+            if (e_idx.check()) {
+                n.set_selection(e_idx());
+                return;
+            }
+            pygmo_throw(::PyExc_TypeError,
+                        ("cannot convert the input object '" + str(o) + "' of type '" + str(type(o))
+                         + "' to either a selection policy (one of ['best', 'worst', 'random']) or an individual index")
+                            .c_str());
+        }),
+        bls_selection_docstring(algo_name).c_str());
+    add_property(
+        c, "replacement", lcast([](const T &n) -> bp::object {
+            auto s = n.get_replacement();
+            if (boost::any_cast<std::string>(&s)) {
+                return bp::str(boost::any_cast<std::string>(s));
+            }
+            return bp::object(boost::any_cast<population::size_type>(s));
+        }),
+        lcast([](T &n, const bp::object &o) {
+            bp::extract<std::string> e_str(o);
+            if (e_str.check()) {
+                n.set_replacement(e_str());
+                return;
+            }
+            bp::extract<population::size_type> e_idx(o);
+            if (e_idx.check()) {
+                n.set_replacement(e_idx());
+                return;
+            }
+            pygmo_throw(
+                ::PyExc_TypeError,
+                ("cannot convert the input object '" + str(o) + "' of type '" + str(type(o))
+                 + "' to either a replacement policy (one of ['best', 'worst', 'random']) or an individual index")
+                    .c_str());
+        }),
+        bls_replacement_docstring(algo_name).c_str());
+    c.def("set_random_sr_seed", &T::set_random_sr_seed, bls_set_random_sr_seed_docstring(algo_name).c_str());
+}
 
 void expose_algorithms()
 {
@@ -208,6 +269,7 @@ void expose_algorithms()
     compass_search_.def("get_stop_range", &compass_search::get_stop_range);
     compass_search_.def("get_reduction_coeff", &compass_search::get_reduction_coeff);
     compass_search_.def("get_verbosity", &compass_search::get_verbosity);
+    expose_not_population_based(compass_search_, "compass_search");
     // PSO
     auto pso_ = expose_algorithm<pso>("pso", pso_docstring().c_str());
     pso_.def(bp::init<unsigned, double, double, double, double, unsigned, unsigned, unsigned, bool>(
@@ -224,8 +286,22 @@ void expose_algorithms()
     auto sea_ = expose_algorithm<sea>("sea", sea_docstring().c_str());
     sea_.def(bp::init<unsigned>((bp::arg("gen") = 1u)));
     sea_.def(bp::init<unsigned, unsigned>((bp::arg("gen") = 1u, bp::arg("seed"))));
-    expose_algo_log(sea_, "");
+    expose_algo_log(sea_, sea_get_log_docstring().c_str());
     sea_.def("get_seed", &sea::get_seed, generic_uda_get_seed_docstring().c_str());
+    // SGA
+    auto sga_ = expose_algorithm<sga>("sga", sga_docstring().c_str());
+    sga_.def(
+        bp::init<unsigned, double, double, double, double, unsigned, std::string, std::string, std::string, unsigned>(
+            (bp::arg("gen") = 1u, bp::arg("cr") = 0.9, bp::arg("eta_c") = 1., bp::arg("m") = 0.02,
+             bp::arg("param_m") = 1., bp::arg("param_s") = 2u, bp::arg("crossover") = "exponential",
+             bp::arg("mutation") = "polynomial", bp::arg("selection") = "tournament", bp::arg("int_dim") = 0u)));
+    sga_.def(bp::init<unsigned, double, double, double, double, unsigned, std::string, std::string, std::string,
+                      unsigned, unsigned>(
+        (bp::arg("gen") = 1u, bp::arg("cr") = 0.9, bp::arg("eta_c") = 1., bp::arg("m") = 0.02, bp::arg("param_m") = 1.,
+         bp::arg("param_s") = 2u, bp::arg("crossover") = "exponential", bp::arg("mutation") = "polynomial",
+         bp::arg("selection") = "tournament", bp::arg("int_dim") = 0u, bp::arg("seed"))));
+    expose_algo_log(sga_, sga_get_log_docstring().c_str());
+    sga_.def("get_seed", &sga::get_seed, generic_uda_get_seed_docstring().c_str());
     // SIMULATED ANNEALING
     auto simulated_annealing_
         = expose_algorithm<simulated_annealing>("simulated_annealing", simulated_annealing_docstring().c_str());
@@ -237,6 +313,7 @@ void expose_algorithms()
          bp::arg("bin_size") = 10u, bp::arg("start_range") = 1., bp::arg("seed"))));
     expose_algo_log(simulated_annealing_, simulated_annealing_get_log_docstring().c_str());
     simulated_annealing_.def("get_seed", &simulated_annealing::get_seed, generic_uda_get_seed_docstring().c_str());
+    expose_not_population_based(simulated_annealing_, "simulated_annealing");
     // SADE
     auto sade_ = expose_algorithm<sade>("sade", sade_docstring().c_str());
     sade_.def(bp::init<unsigned, unsigned, unsigned, double, double, bool>(
@@ -319,10 +396,10 @@ void expose_algorithms()
     auto nsga2_ = expose_algorithm<nsga2>("nsga2", nsga2_docstring().c_str());
     nsga2_.def(bp::init<unsigned, double, double, double, double, unsigned>(
         (bp::arg("gen") = 1u, bp::arg("cr") = 0.95, bp::arg("eta_c") = 10., bp::arg("m") = 0.01, bp::arg("eta_m") = 10.,
-         bp::arg("int_dim") = 0)));
-    nsga2_.def(bp::init<unsigned, double, double, double, double, unsigned>(
+         bp::arg("int_dim") = 0u)));
+    nsga2_.def(bp::init<unsigned, double, double, double, double, unsigned, unsigned>(
         (bp::arg("gen") = 1u, bp::arg("cr") = 0.95, bp::arg("eta_c") = 10., bp::arg("m") = 0.01, bp::arg("eta_m") = 10.,
-         bp::arg("int_dim") = 0, bp::arg("seed"))));
+         bp::arg("int_dim") = 0u, bp::arg("seed"))));
     // nsga2 needs an ad hoc exposition for the log as one entry is a vector (ideal_point)
     nsga2_.def("get_log", lcast([](const nsga2 &a) -> bp::list {
                    bp::list retval;
@@ -347,59 +424,7 @@ void expose_algorithms()
     add_property(nlopt_, "xtol_abs", &nlopt::get_xtol_abs, &nlopt::set_xtol_abs, nlopt_xtol_abs_docstring().c_str());
     add_property(nlopt_, "maxeval", &nlopt::get_maxeval, &nlopt::set_maxeval, nlopt_maxeval_docstring().c_str());
     add_property(nlopt_, "maxtime", &nlopt::get_maxtime, &nlopt::set_maxtime, nlopt_maxtime_docstring().c_str());
-    // Selection/replacement.
-    add_property(
-        nlopt_, "selection", lcast([](const nlopt &n) -> bp::object {
-            auto s = n.get_selection();
-            if (boost::any_cast<std::string>(&s)) {
-                return bp::str(boost::any_cast<std::string>(s));
-            }
-            return bp::object(boost::any_cast<population::size_type>(s));
-        }),
-        lcast([](nlopt &n, const bp::object &o) {
-            bp::extract<std::string> e_str(o);
-            if (e_str.check()) {
-                n.set_selection(e_str());
-                return;
-            }
-            bp::extract<population::size_type> e_idx(o);
-            if (e_idx.check()) {
-                n.set_selection(e_idx());
-                return;
-            }
-            pygmo_throw(::PyExc_TypeError,
-                        ("cannot convert the input object '" + str(o) + "' of type '" + str(type(o))
-                         + "' to either a selection policy (one of ['best', 'worst', 'random']) or an individual index")
-                            .c_str());
-        }),
-        nlopt_selection_docstring().c_str());
-    add_property(
-        nlopt_, "replacement", lcast([](const nlopt &n) -> bp::object {
-            auto s = n.get_replacement();
-            if (boost::any_cast<std::string>(&s)) {
-                return bp::str(boost::any_cast<std::string>(s));
-            }
-            return bp::object(boost::any_cast<population::size_type>(s));
-        }),
-        lcast([](nlopt &n, const bp::object &o) {
-            bp::extract<std::string> e_str(o);
-            if (e_str.check()) {
-                n.set_replacement(e_str());
-                return;
-            }
-            bp::extract<population::size_type> e_idx(o);
-            if (e_idx.check()) {
-                n.set_replacement(e_idx());
-                return;
-            }
-            pygmo_throw(
-                ::PyExc_TypeError,
-                ("cannot convert the input object '" + str(o) + "' of type '" + str(type(o))
-                 + "' to either a replacement policy (one of ['best', 'worst', 'random']) or an individual index")
-                    .c_str());
-        }),
-        nlopt_replacement_docstring().c_str());
-    nlopt_.def("set_random_sr_seed", &nlopt::set_random_sr_seed, nlopt_set_random_sr_seed_docstring().c_str());
+    expose_not_population_based(nlopt_, "nlopt");
     expose_algo_log(nlopt_, nlopt_get_log_docstring().c_str());
     nlopt_.def("get_last_opt_result", lcast([](const nlopt &n) { return static_cast<int>(n.get_last_opt_result()); }),
                nlopt_get_last_opt_result_docstring().c_str());
@@ -414,6 +439,82 @@ void expose_algorithms()
                      }
                  }),
                  nlopt_local_optimizer_docstring().c_str());
+#endif
+
+#if defined(PAGMO_WITH_IPOPT)
+    // Ipopt.
+    auto ipopt_ = expose_algorithm<ipopt>("ipopt", ipopt_docstring().c_str());
+    expose_not_population_based(ipopt_, "ipopt");
+    expose_algo_log(ipopt_, ipopt_get_log_docstring().c_str());
+    ipopt_.def("get_last_opt_result", lcast([](const ipopt &ip) { return static_cast<int>(ip.get_last_opt_result()); }),
+               ipopt_get_last_opt_result_docstring().c_str());
+    // Options management.
+    // String opts.
+    ipopt_.def("set_string_option", &ipopt::set_string_option, ipopt_set_string_option_docstring().c_str(),
+               (bp::arg("name"), bp::arg("value")));
+    ipopt_.def("set_string_options", lcast([](ipopt &ip, const bp::dict &d) {
+                   std::map<std::string, std::string> m;
+                   bp::stl_input_iterator<std::string> begin(d), end;
+                   for (; begin != end; ++begin) {
+                       m[*begin] = bp::extract<std::string>(d[*begin])();
+                   }
+                   ip.set_string_options(m);
+               }),
+               ipopt_set_string_options_docstring().c_str(), bp::arg("opts"));
+    ipopt_.def("get_string_options", lcast([](const ipopt &ip) -> bp::dict {
+                   const auto opts = ip.get_string_options();
+                   bp::dict retval;
+                   for (const auto &p : opts) {
+                       retval[p.first] = p.second;
+                   }
+                   return retval;
+               }),
+               ipopt_get_string_options_docstring().c_str());
+    ipopt_.def("reset_string_options", &ipopt::reset_string_options, ipopt_reset_string_options_docstring().c_str());
+    // Integer options.
+    ipopt_.def("set_integer_option", &ipopt::set_integer_option, ipopt_set_integer_option_docstring().c_str(),
+               (bp::arg("name"), bp::arg("value")));
+    ipopt_.def("set_integer_options", lcast([](ipopt &ip, const bp::dict &d) {
+                   std::map<std::string, Ipopt::Index> m;
+                   bp::stl_input_iterator<std::string> begin(d), end;
+                   for (; begin != end; ++begin) {
+                       m[*begin] = bp::extract<Ipopt::Index>(d[*begin])();
+                   }
+                   ip.set_integer_options(m);
+               }),
+               ipopt_set_integer_options_docstring().c_str(), bp::arg("opts"));
+    ipopt_.def("get_integer_options", lcast([](const ipopt &ip) -> bp::dict {
+                   const auto opts = ip.get_integer_options();
+                   bp::dict retval;
+                   for (const auto &p : opts) {
+                       retval[p.first] = p.second;
+                   }
+                   return retval;
+               }),
+               ipopt_get_integer_options_docstring().c_str());
+    ipopt_.def("reset_integer_options", &ipopt::reset_integer_options, ipopt_reset_integer_options_docstring().c_str());
+    // Numeric options.
+    ipopt_.def("set_numeric_option", &ipopt::set_numeric_option, ipopt_set_numeric_option_docstring().c_str(),
+               (bp::arg("name"), bp::arg("value")));
+    ipopt_.def("set_numeric_options", lcast([](ipopt &ip, const bp::dict &d) {
+                   std::map<std::string, double> m;
+                   bp::stl_input_iterator<std::string> begin(d), end;
+                   for (; begin != end; ++begin) {
+                       m[*begin] = bp::extract<double>(d[*begin])();
+                   }
+                   ip.set_numeric_options(m);
+               }),
+               ipopt_set_numeric_options_docstring().c_str(), bp::arg("opts"));
+    ipopt_.def("get_numeric_options", lcast([](const ipopt &ip) -> bp::dict {
+                   const auto opts = ip.get_numeric_options();
+                   bp::dict retval;
+                   for (const auto &p : opts) {
+                       retval[p.first] = p.second;
+                   }
+                   return retval;
+               }),
+               ipopt_get_numeric_options_docstring().c_str());
+    ipopt_.def("reset_numeric_options", &ipopt::reset_numeric_options, ipopt_reset_numeric_options_docstring().c_str());
 #endif
 }
 }

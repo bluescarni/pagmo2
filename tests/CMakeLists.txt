@@ -53,6 +53,7 @@ ADD_PAGMO_TESTCASE(rng_serialization)
 ADD_PAGMO_TESTCASE(rosenbrock)
 ADD_PAGMO_TESTCASE(sade)
 ADD_PAGMO_TESTCASE(simulated_annealing)
+ADD_PAGMO_TESTCASE(sga)
 ADD_PAGMO_TESTCASE(schwefel)
 ADD_PAGMO_TESTCASE(sea)
 ADD_PAGMO_TESTCASE(translate)
@@ -67,6 +68,10 @@ endif()
 
 if(PAGMO_WITH_NLOPT)
     ADD_PAGMO_TESTCASE(nlopt)
+endif()
+
+if(PAGMO_WITH_IPOPT)
+    ADD_PAGMO_TESTCASE(ipopt)
 endif()
 
 # Here are problematic tests.

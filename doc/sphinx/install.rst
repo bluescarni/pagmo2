@@ -9,12 +9,16 @@ Installation guide
 C++
 ---
 
-Pagmo is a header-only library which has the following third party dependencies:
+pagmo is a header-only library which has the following third party dependencies:
 
 * `Boost <http://www.boost.org/>`_, **mandatory**, header-only (needs the libraries only if you
   intend to compile the python bindings)
 * `Eigen <http://eigen.tuxfamily.org/index.php?title=Main_Page>`_, optional, header-only
+  (enabled via the ``PAGMO_WITH_EIGEN3`` CMake option)
 * `NLopt <http://ab-initio.mit.edu/wiki/index.php/NLopt>`_, optional, requires linking
+  (enabled via the ``PAGMO_WITH_NLOPT`` CMake option)
+* `Ipopt <https://projects.coin-or.org/Ipopt>`_, optional, requires linking
+  (enabled via the ``PAGMO_WITH_IPOPT`` CMake option)
 
 After making sure the dependencies above are installed in your system, you can download the
 pagmo source code from the `GitHub release page <https://github.com/esa/pagmo2/releases>`_. Alternatively,
@@ -36,10 +40,21 @@ you can install pagmo via the command
 The headers will be installed in the ``CMAKE_INSTALL_PREFIX/include`` directory. To check that all went well
 compile the :ref:`quick-start example <getting_started_c++>`.
 
------------------------------------------------------------------------
+pagmo is also available via the `conda <https://conda.io/docs/>`_ package manager for Linux, OSX and Windows.
+In order to install pagmo via conda, you just need to add ``conda-forge`` to the channels,
+and then we can immediately install pagmo:
+
+.. code-block:: bash
+
+   conda config --add channels conda-forge
+   conda install pagmo
+
+Please refer to the `conda documentation <https://conda.io/docs/>`_ for instructions on how to setup and manage
+your conda installation.
 
 Python
 ------
+
 The python module corresponding to pagmo is called pygmo. There are various options for the installation
 of pygmo:
 
@@ -87,7 +102,7 @@ and then we can immediately install pygmo:
 
 .. code-block:: bash
 
-   conda config --add channels conda-forge 
+   conda config --add channels conda-forge
    conda install pygmo
 
 Please refer to the `conda documentation <https://conda.io/docs/>`_ for instructions on how to setup and manage

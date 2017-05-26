@@ -11,8 +11,8 @@ all of them. The user can implement his own UDA, or use any ot the ones we provi
 
 Each algorithm can be associated only to problems of certain types S = Single, M = Multi-objective, C = Constrained, U = Unconstrained, sto = stochastic
 
-Heuristic Optimization
-^^^^^^^^^^^^^^^^^^^^^^
+Heuristic Global Optimization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ========================================================== ========================================= =============== ===================================================================
 Common Name                                                Name in PyGMO                             Type            Comments
 ========================================================== ========================================= =============== ===================================================================
@@ -22,6 +22,7 @@ Self-adaptive DE (jDE and iDE)                             :class:`pygmo.sade`  
 Self-adaptive DE (de_1220 aka pDE)                         :class:`pygmo.de1220`                     S-U             Exposed from C++
 Particle Swarm Optimization (PSO)                          :class:`pygmo.pso`                        S-U             Exposed from C++
 (N+1)-ES Simple Evolutionary Algorithm                     :class:`pygmo.sea`                        S-U (sto)       Exposed from C++
+Simple Genetic Algorithm                                   :class:`pygmo.sga`                        S-U (sto)       Exposed from C++
 Corana's Simulated Annealing (SA)                          :class:`pygmo.simulated_annealing`        S-U             Exposed from C++
 Artificial Bee Colony (ABC)                                :class:`pygmo.bee_colony`                 S-U             Exposed from C++
 Covariance Matrix Adaptation Evo. Strategy (CMA-ES)        :class:`pygmo.cmaes`                      S-U             Exposed from C++
@@ -36,6 +37,7 @@ Common Name                        Name in PyGMO                                
 ================================== ============================================ =============== ===========================================
 Monotonic Basin Hopping (MBH)      :class:`pygmo.mbh`                           S-CU            Exposed from C++
 Cstrs Self-Adaptive                :class:`pygmo.cstrs_self_adaptive`           S-C             Exposed from C++
+Augmented Lagrangian algorithm     :class:`pygmo.nlopt`                         S-CU            Exposed from C++
 ================================== ============================================ =============== ===========================================
 
 Local optimization 
@@ -56,7 +58,7 @@ SLSQP (from NLopt)                                     :class:`pygmo.nlopt`     
 low-storage BFGS (from NLopt)                          :class:`pygmo.nlopt`                      S-U             Exposed from C++
 preconditioned truncated Newton (from NLopt)           :class:`pygmo.nlopt`                      S-U             Exposed from C++
 Shifted limited-memory variable-metric (from NLopt)    :class:`pygmo.nlopt`                      S-U             Exposed from C++
-Augmented Lagrangian algorithm (from NLopt)            :class:`pygmo.nlopt`                      S-CU            Exposed from C++
+Ipopt                                                  :class:`pygmo.ipopt`                      S-CU            Exposed from C++
 ====================================================== ========================================= =============== =====================================================================
 
 ----------------------------------------------------------------------------------------------------------------------
@@ -81,6 +83,11 @@ Algorithms exposed from C++
 -------------------------------------------------------------
 
 .. autoclass:: pygmo.sea
+   :members:
+
+-------------------------------------------------------------
+
+.. autoclass:: pygmo.sga
    :members:
 
 -------------------------------------------------------------
@@ -136,4 +143,9 @@ Algorithms exposed from C++
 -------------------------------------------------------------
 
 .. autoclass:: pygmo.nlopt
+   :members:
+
+-------------------------------------------------------------
+
+.. autoclass:: pygmo.ipopt
    :members:

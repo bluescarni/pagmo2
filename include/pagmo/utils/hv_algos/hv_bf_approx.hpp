@@ -1,26 +1,30 @@
-/*****************************************************************************
-*   Copyright (C) 2004-2015 The PaGMO development team,                     *
-*   Advanced Concepts Team (ACT), European Space Agency (ESA)               *
-*                                                                           *
-*   https://github.com/esa/pagmo                                            *
-*                                                                           *
-*   act@esa.int                                                             *
-*                                                                           *
-*   This program is free software; you can redistribute it and/or modify    *
-*   it under the terms of the GNU General Public License as published by    *
-*   the Free Software Foundation; either version 2 of the License, or       *
-*   (at your option) any later version.                                     *
-*                                                                           *
-*   This program is distributed in the hope that it will be useful,         *
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
-*   GNU General Public License for more details.                            *
-*                                                                           *
-*   You should have received a copy of the GNU General Public License       *
-*   along with this program; if not, write to the                           *
-*   Free Software Foundation, Inc.,                                         *
-*   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.               *
-*****************************************************************************/
+/* Copyright 2017 PaGMO development team
+
+This file is part of the PaGMO library.
+
+The PaGMO library is free software; you can redistribute it and/or modify
+it under the terms of either:
+
+  * the GNU Lesser General Public License as published by the Free
+    Software Foundation; either version 3 of the License, or (at your
+    option) any later version.
+
+or
+
+  * the GNU General Public License as published by the Free Software
+    Foundation; either version 3 of the License, or (at your option) any
+    later version.
+
+or both in parallel, as here.
+
+The PaGMO library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received copies of the GNU General Public License and the
+GNU Lesser General Public License along with the PaGMO library.  If not,
+see https://www.gnu.org/licenses/. */
 
 #ifndef PAGMO_UTIL_bf_approx_H
 #define PAGMO_UTIL_bf_approx_H
@@ -31,12 +35,12 @@
 #include <string>
 #include <vector>
 
-#include "../../exceptions.hpp"
-#include "../../io.hpp"
-#include "../../population.hpp"
-#include "../../types.hpp"
-#include "../hypervolume.hpp"
-#include "hv_algorithm.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/hv_algos/hv_algorithm.hpp>
+#include <pagmo/utils/hypervolume.hpp>
 
 namespace pagmo
 {
