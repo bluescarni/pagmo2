@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017 PaGMO development team
+# Copyright 2017-2018 PaGMO development team
 #
 # This file is part of the PaGMO library.
 #
@@ -65,11 +65,13 @@ def plot_non_dominated_fronts(points, marker='o', comp=[0, 1]):
                   linspace(0.1, 0.9, len(fronts)),
                   linspace(0.1, 0.9, len(fronts))))
 
+    fig, ax = plt.subplots()
+
     for ndr, front in enumerate(fronts):
         # We plot the points
         for idx in front:
-            plt.plot(points[idx][comp[0]], points[idx][
-                     comp[1]], marker=marker, color=cl[ndr])
+            ax.plot(points[idx][comp[0]], points[idx][
+                comp[1]], marker=marker, color=cl[ndr])
         # We plot the fronts
         # Frist compute the points coordinates
         x = [points[idx][0] for idx in front]
@@ -78,11 +80,11 @@ def plot_non_dominated_fronts(points, marker='o', comp=[0, 1]):
         tmp = [(a, b) for a, b in zip(x, y)]
         tmp = sorted(tmp, key=lambda k: k[0])
         # Now plot using step
-        plt.step([c[0] for c in tmp], [c[1]
-                                       for c in tmp], color=cl[ndr], where='post')
+        ax.step([c[0] for c in tmp], [c[1]
+                                      for c in tmp], color=cl[ndr], where='post')
 
     plt.show()
-    return plt.gca()
+    return ax
 
 
 def _dtlz_plot(self, pop, az=40, comp=[0, 1, 2]):
@@ -111,7 +113,7 @@ def _dtlz_plot(self, pop, az=40, comp=[0, 1, 2]):
     import matplotlib.pyplot as plt
     import numpy as np
 
-    if (pop.get_problem().get_name()[:-1] != "DTLZ"):
+    if (pop.problem.get_name()[:-1] != "DTLZ"):
         raise(ValueError, "The problem seems not to be from the DTLZ suite")
 
     if (len(comp) != 3):
@@ -129,7 +131,7 @@ def _dtlz_plot(self, pop, az=40, comp=[0, 1, 2]):
         print('Error. Please choose correct fitness dimensions for printing!')
 
     # Plot pareto front for dtlz 1
-    if (pop.get_problem().get_name()[-1] in ["1"]):
+    if (pop.problem.get_name()[-1] in ["1"]):
 
         X, Y = np.meshgrid(np.linspace(0, 0.5, 100), np.linspace(0, 0.5, 100))
         Z = - X - Y + 0.5
@@ -147,7 +149,7 @@ def _dtlz_plot(self, pop, az=40, comp=[0, 1, 2]):
         plt.plot([0, 0.5], [0.5, 0], [0, 0])
 
     # Plot pareto fronts for dtlz 2,3,4
-    if (pop.get_problem().get_name()[-1] in ["2", "3", "4"]):
+    if (pop.problem.get_name()[-1] in ["2", "3", "4"]):
         # plot the wireframe of the known optimal pareto front
         thetas = np.linspace(0, (np.pi / 2.0), 30)
         # gammas = np.linspace(-np.pi / 4, np.pi / 4, 30)
@@ -169,7 +171,8 @@ def _dtlz_plot(self, pop, az=40, comp=[0, 1, 2]):
 
     ax.view_init(azim=az)
     plt.show()
-    return plt.gca()
+    return ax
+
 
 from ..core import dtlz
 dtlz.plot = _dtlz_plot

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017 PaGMO development team
+# Copyright 2017-2018 PaGMO development team
 #
 # This file is part of the PaGMO library.
 #
@@ -159,8 +159,9 @@ class problem_test_case(_ut.TestCase):
         # Run fitness a few more times.
         prob.fitness([0, 0])
         prob.fitness([0, 0])
-        # Assert that the global variable was copied into p, not simply
-        # referenced.
+        # Assert that p_inst was deep-copied into prob:
+        # the instance in prob will have its own copy of glob
+        # and it will not be a reference the outside object.
         self.assertEqual(len(glob), 0)
         self.assertEqual(len(prob.extract(p).g), 3)
         # Non-finite bounds.
@@ -358,6 +359,14 @@ class problem_test_case(_ut.TestCase):
         self.assertTrue(all(prob.c_tol == array([0., 0.])))
         prob.c_tol = [1e-8, 1e-6]
         self.assertTrue(all(prob.c_tol == array([1e-8, 1e-6])))
+        prob.c_tol = 1e-3
+        self.assertTrue(all(prob.c_tol == array([1e-3, 1e-3])))
+        prob.c_tol = 4
+        self.assertTrue(all(prob.c_tol == array([4., 4.])))
+
+        def raiser():
+            prob.c_tol = float('nan')
+        self.assertRaises(ValueError, raiser)
 
     def run_evals_tests(self):
         from .core import problem

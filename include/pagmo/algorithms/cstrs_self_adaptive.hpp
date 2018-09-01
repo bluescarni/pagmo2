@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -37,15 +37,15 @@ see https://www.gnu.org/licenses/. */
 #include <tuple>
 #include <unordered_map>
 
-#include "../algorithm.hpp"
-#include "../algorithms/de.hpp"
-#include "../detail/custom_comparisons.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../types.hpp"
-#include "../utils/generic.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/algorithms/de.hpp>
+#include <pagmo/detail/custom_comparisons.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/generic.hpp>
 
 namespace pagmo
 {
@@ -379,7 +379,7 @@ public:
                 retval += std::max(0., fit[j + 1] - c_tol[j]) / m_c_max[j];
             }
         }
-        retval /= (double)nc;
+        retval /= static_cast<double>(nc);
         return retval;
     }
     // According to the population, the first penalty may or may not be applied
@@ -407,7 +407,7 @@ public:
     mutable std::unordered_map<vector_double, vector_double, detail::hash_vf<double>, detail::equal_to_vf<double>>
         m_fitness_map;
 };
-}
+} // namespace detail
 
 /// Self-adaptive constraints handling
 /**
@@ -454,21 +454,32 @@ public:
  *
  * pagmo::cstrs_self_adaptive is a user-defined algorithm (UDA) that can be used to construct pagmo::algorithm objects.
  *
- * **NOTE** Self-adaptive constraints handling implements an internal cache to avoid the re-evaluation of the fitness
- * for decision vectors already evaluated. This makes the final counter of function evaluations somehow unpredictable.
- * The number of function evaluation will be bounded to \p iters times the fevals made by one call to the inner UDA. The
- * internal cache is reset at each iteration, but its size will grow unlimited during each call to
- * the inner UDA evolve method.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * **NOTE** Several modification were made to the original Faramani and Wright ideas to allow their approach to work on
- * corner cases and with any UDAs. Most notably, a violation to the \f$j\f$-th  constraint is ignored if all
- * the decision vectors in the population satisfy that particular constraint (i.e. if \f$c_{j_{max}} = 0\f$).
+ *    Self-adaptive constraints handling implements an internal cache to avoid the re-evaluation of the fitness
+ *    for decision vectors already evaluated. This makes the final counter of function evaluations somewhat
+ *    unpredictable. The number of function evaluation will be bounded to ``iters`` times the fevals made by one call to
+ *    the inner UDA. The internal cache is reset at each iteration, but its size will grow unlimited during each call to
+ *    the inner UDA evolve method.
  *
- * **NOTE** The performances of pagmo::cstrs_self_adaptive are highly dependent on the particular inner UDA employed and
- * in particular to its parameters (generations / iterations).
+ * .. note::
  *
- * See: Farmani, Raziyeh, and Jonathan A. Wright. "Self-adaptive fitness formulation for constrained optimization." IEEE
- * Transactions on Evolutionary Computation 7.5 (2003): 445-455.
+ *    Several modification were made to the original Faramani and Wright ideas to allow their approach to work on
+ *    corner cases and with any UDAs. Most notably, a violation to the :math:`j`-th  constraint is ignored if all
+ *    the decision vectors in the population satisfy that particular constraint (i.e. if :math:`c_{j_{max}} = 0`).
+ *
+ * .. note::
+ *
+ *    The performances of :cpp:class:`pagmo::cstrs_self_adaptive` are highly dependent on the particular inner UDA
+ *    employed and in particular to its parameters (generations / iterations).
+ *
+ * .. seealso::
+ *
+ *    Farmani, Raziyeh, and Jonathan A. Wright. "Self-adaptive fitness formulation for constrained optimization." IEEE
+ *    Transactions on Evolutionary Computation 7.5 (2003): 445-455.
+ *
+ * \endverbatim
  */
 class cstrs_self_adaptive
 {
@@ -592,9 +603,9 @@ public:
                     // Prints a log line after each call to the inner algorithm
                     // 1 - Every 50 lines print the column names
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Iter:", std::setw(15), "Fevals:", std::setw(15), "Best:",
-                              std::setw(15), "Infeasibility:", std::setw(15), "Violated:", std::setw(15), "Viol. Norm:",
-                              std::setw(15), "N. Feasible:", '\n');
+                        print("\n", std::setw(7), "Iter:", std::setw(15), "Fevals:", std::setw(15),
+                              "Best:", std::setw(15), "Infeasibility:", std::setw(15), "Violated:", std::setw(15),
+                              "Viol. Norm:", std::setw(15), "N. Feasible:", '\n');
                     }
                     // 2 - Print
                     auto cur_best_f = pop.get_f()[pop.best_idx()];
@@ -718,7 +729,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Self-adaptive constraints handling";
+        return "sa-CNSTR: Self-adaptive constraints handling";
     }
     /// Extra informations
     /**
@@ -759,9 +770,14 @@ public:
     /**
      * Returns a reference to the inner pagmo::algorithm.
      *
-     * **NOTE** The ability to extract a non const reference is provided only in order to allow to call
-     * non-const methods on the internal pagmo::algorithm instance. Assigning a new pagmo::algorithm via
-     * this reference is undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The ability to extract a non const reference is provided only in order to allow to call
+     *    non-const methods on the internal :cpp:class:`pagmo::algorithm` instance. Assigning a new
+     *    :cpp:class:`pagmo::algorithm` via this reference is undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a reference to the inner pagmo::algorithm.
      */

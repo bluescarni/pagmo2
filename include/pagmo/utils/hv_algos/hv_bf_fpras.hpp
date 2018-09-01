@@ -1,26 +1,30 @@
-/*****************************************************************************
-*   Copyright (C) 2004-2015 The PaGMO development team,                     *
-*   Advanced Concepts Team (ACT), European Space Agency (ESA)               *
-*                                                                           *
-*   https://github.com/esa/pagmo                                            *
-*                                                                           *
-*   act@esa.int                                                             *
-*                                                                           *
-*   This program is free software; you can redistribute it and/or modify    *
-*   it under the terms of the GNU General Public License as published by    *
-*   the Free Software Foundation; either version 2 of the License, or       *
-*   (at your option) any later version.                                     *
-*                                                                           *
-*   This program is distributed in the hope that it will be useful,         *
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
-*   GNU General Public License for more details.                            *
-*                                                                           *
-*   You should have received a copy of the GNU General Public License       *
-*   along with this program; if not, write to the                           *
-*   Free Software Foundation, Inc.,                                         *
-*   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.               *
-*****************************************************************************/
+/* Copyright 2017-2018 PaGMO development team
+
+This file is part of the PaGMO library.
+
+The PaGMO library is free software; you can redistribute it and/or modify
+it under the terms of either:
+
+  * the GNU Lesser General Public License as published by the Free
+    Software Foundation; either version 3 of the License, or (at your
+    option) any later version.
+
+or
+
+  * the GNU General Public License as published by the Free Software
+    Foundation; either version 3 of the License, or (at your option) any
+    later version.
+
+or both in parallel, as here.
+
+The PaGMO library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received copies of the GNU General Public License and the
+GNU Lesser General Public License along with the PaGMO library.  If not,
+see https://www.gnu.org/licenses/. */
 
 #ifndef PAGMO_UTIL_bf_fpras_H
 #define PAGMO_UTIL_bf_fpras_H
@@ -31,12 +35,12 @@
 #include <string>
 #include <vector>
 
-#include "../../exceptions.hpp"
-#include "../../io.hpp"
-#include "../../population.hpp"
-#include "../../types.hpp"
-#include "../hypervolume.hpp"
-#include "hv_algorithm.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/hv_algos/hv_algorithm.hpp>
+#include <pagmo/utils/hypervolume.hpp>
 
 namespace pagmo
 {
@@ -50,17 +54,17 @@ namespace pagmo
  *
  */
 
-class bf_fpras : public hv_algorithm
+class bf_fpras final : public hv_algorithm
 {
 public:
     /// Constructor
     /**
-    * Constructs an instance of the algorithm
-    *
-    * @param eps accuracy of the approximation
-    * @param delta confidence of the approximation
-    * @param seed seeding for the pseudo-random number generator
-    */
+     * Constructs an instance of the algorithm
+     *
+     * @param eps accuracy of the approximation
+     * @param delta confidence of the approximation
+     * @param seed seeding for the pseudo-random number generator
+     */
     bf_fpras(double eps = 1e-2, double delta = 1e-2, unsigned int seed = pagmo::random_device::next())
         : m_eps(eps), m_delta(delta), m_e(seed)
     {
@@ -74,31 +78,31 @@ public:
 
     /// Verify before compute
     /**
-    * Verifies whether given algorithm suits the requested data.
-    *
-    * @param points vector of points containing the d dimensional points for which we compute the hypervolume
-    * @param r_point reference point for the vector of points
-    *
-    * @throws value_error when trying to compute the hypervolume for the non-maximal reference point
-    */
-    void verify_before_compute(const std::vector<vector_double> &points, const vector_double &r_point) const
+     * Verifies whether given algorithm suits the requested data.
+     *
+     * @param points vector of points containing the d dimensional points for which we compute the hypervolume
+     * @param r_point reference point for the vector of points
+     *
+     * @throws value_error when trying to compute the hypervolume for the non-maximal reference point
+     */
+    void verify_before_compute(const std::vector<vector_double> &points, const vector_double &r_point) const override
     {
         hv_algorithm::assert_minimisation(points, r_point);
     }
 
     /// Compute method
     /**
-    * Compute the hypervolume using FPRAS.
-    *
-    * @see "Approximating the volume of unions and intersections of high-dimensional geometric objects", Karl Bringmann,
-    * Tobias Friedrich.
-    *
-    * @param points vector of fitness_vectors for which the hypervolume is computed
-    * @param r_point distinguished "reference point".
-    *
-    * @return approximated hypervolume
-    */
-    double compute(std::vector<vector_double> &points, const vector_double &r_point) const
+     * Compute the hypervolume using FPRAS.
+     *
+     * @see "Approximating the volume of unions and intersections of high-dimensional geometric objects", Karl
+     * Bringmann, Tobias Friedrich.
+     *
+     * @param points vector of fitness_vectors for which the hypervolume is computed
+     * @param r_point distinguished "reference point".
+     *
+     * @return approximated hypervolume
+     */
+    double compute(std::vector<vector_double> &points, const vector_double &r_point) const override
     {
         auto n = points.size();
         auto dim = r_point.size();
@@ -157,42 +161,42 @@ public:
 
     /// Exclusive method
     /**
-    * This algorithm does not support this method.
-    * @return Nothing as it throws before
-    */
-    double exclusive(unsigned int, std::vector<vector_double> &, const vector_double &) const
+     * This algorithm does not support this method.
+     * @return Nothing as it throws before
+     */
+    double exclusive(unsigned int, std::vector<vector_double> &, const vector_double &) const override
     {
         pagmo_throw(std::invalid_argument, "This method is not supported by the bf_fpras algorithm");
     }
 
     /// Least contributor method
     /**
-    * This algorithm does not support this method.
-    *
-    * @return Nothing as it throws before
-    */
-    unsigned long long least_contributor(std::vector<vector_double> &, const vector_double &) const
+     * This algorithm does not support this method.
+     *
+     * @return Nothing as it throws before
+     */
+    unsigned long long least_contributor(std::vector<vector_double> &, const vector_double &) const override
     {
         pagmo_throw(std::invalid_argument, "This method is not supported by the bf_fpras algorithm");
     }
 
     /// Greatest contributor method
     /**
-    * This algorithm does not support this method.
-    * @return Nothing as it throws before
-    */
-    unsigned long long greatest_contributor(std::vector<vector_double> &, const vector_double &) const
+     * This algorithm does not support this method.
+     * @return Nothing as it throws before
+     */
+    unsigned long long greatest_contributor(std::vector<vector_double> &, const vector_double &) const override
     {
         pagmo_throw(std::invalid_argument, "This method is not supported by the bf_fpras algorithm");
     }
 
     /// Contributions method
     /**
-    * As of yet, this algorithm does not support this method, even in its naive form, due to a poor handling of the
-    * dominated points.
-    * @return Nothing as it throws before
-    */
-    vector_double contributions(std::vector<vector_double> &, const vector_double &) const
+     * As of yet, this algorithm does not support this method, even in its naive form, due to a poor handling of the
+     * dominated points.
+     * @return Nothing as it throws before
+     */
+    vector_double contributions(std::vector<vector_double> &, const vector_double &) const override
     {
         pagmo_throw(std::invalid_argument, "This method is not supported by the bf_fpras algorithm");
     }
@@ -201,7 +205,7 @@ public:
     /**
      * @return a pointer to a new object cloning this
      */
-    std::shared_ptr<hv_algorithm> clone() const
+    std::shared_ptr<hv_algorithm> clone() const override
     {
         return std::shared_ptr<hv_algorithm>(new bf_fpras(*this));
     }
@@ -210,7 +214,7 @@ public:
     /**
      * @return The name of this particular algorithm
      */
-    std::string get_name() const
+    std::string get_name() const override
     {
         return "bf_fpras algorithm";
     }
@@ -223,6 +227,6 @@ private:
 
     mutable detail::random_engine_type m_e;
 };
-}
+} // namespace pagmo
 
 #endif

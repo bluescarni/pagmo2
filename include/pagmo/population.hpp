@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -40,13 +40,18 @@ see https://www.gnu.org/licenses/. */
 #include <stdexcept>
 #include <vector>
 
-#include "problem.hpp"
-#include "rng.hpp"
-#include "serialization.hpp"
-#include "type_traits.hpp"
-#include "types.hpp"
-#include "utils/constrained.hpp"
-#include "utils/generic.hpp"
+#include <pagmo/problem.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/type_traits.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/constrained.hpp>
+#include <pagmo/utils/generic.hpp>
+
+// MINGW-specific warnings.
+#if defined(__GNUC__) && defined(__MINGW32__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=pure"
+#endif
 
 namespace pagmo
 {
@@ -70,8 +75,13 @@ namespace pagmo
  * only defined and accessible via the population interface if the pagmo::problem
  * currently contained in the pagmo::population is single objective.
  *
- * **NOTE**: a moved-from pagmo::population is destructible and assignable. Any other operation will result
- * in undefined behaviour.
+ * \verbatim embed:rst:leading-asterisk
+ * .. warning::
+ *
+ *    A moved-from :cpp:class:`pagmo::population` is destructible and assignable. Any other operation will result
+ *    in undefined behaviour.
+ *
+ * \endverbatim
  */
 class population
 {
@@ -92,14 +102,17 @@ public:
      *
      * @throws unspecified any exception thrown by the constructor from problem.
      */
-    population() : population(null_problem{}, 0u, 0u)
-    {
-    }
+    population() : population(null_problem{}, 0u, 0u) {}
 
     /// Constructor from a problem.
     /**
-     * **NOTE**: this constructor is enabled only if, after the removal of cv/reference qualifiers,
-     * \p T is not pagmo::population, and if pagmo::problem is constructible from \p T.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if, after the removal of cv/reference qualifiers,
+     *    ``T`` is not :cpp:class:`pagmo::population`, and if :cpp:class:`pagmo::problem` is constructible from ``T``.
+     *
+     * \endverbatim
      *
      * Constructs a population with \p pop_size individuals associated
      * to the problem \p x and setting the population random seed
@@ -224,14 +237,14 @@ public:
     {
         // Checks on the input vectors.
         if (x.size() != m_prob.get_nx()) {
-            pagmo_throw(std::invalid_argument, "Trying to add a decision vector of dimension: "
-                                                   + std::to_string(x.size()) + ", while the problem's dimension is: "
-                                                   + std::to_string(m_prob.get_nx()));
+            pagmo_throw(std::invalid_argument,
+                        "Trying to add a decision vector of dimension: " + std::to_string(x.size())
+                            + ", while the problem's dimension is: " + std::to_string(m_prob.get_nx()));
         }
         if (f.size() != m_prob.get_nf()) {
-            pagmo_throw(std::invalid_argument, "Trying to add a fitness of dimension: " + std::to_string(f.size())
-                                                   + ", while the problem's fitness has dimension: "
-                                                   + std::to_string(m_prob.get_nf()));
+            pagmo_throw(std::invalid_argument,
+                        "Trying to add a fitness of dimension: " + std::to_string(f.size())
+                            + ", while the problem's fitness has dimension: " + std::to_string(m_prob.get_nf()));
         }
 
         // Prepare quantities to be appended to the internal vectors.
@@ -263,7 +276,7 @@ public:
      */
     vector_double random_decision_vector() const
     {
-        return pagmo::random_decision_vector(m_prob.get_bounds(), m_e);
+        return pagmo::random_decision_vector(m_prob.get_bounds(), m_e, get_problem().get_nix());
     }
 
     /// Index of the best individual
@@ -331,6 +344,30 @@ public:
         return best_idx(tol_vector);
     }
 
+    /// Index of the worst individual
+    /**
+     * If the problem is single-objective and unconstrained, the worst
+     * is simply the individual with the largest fitness. If the problem
+     * is, instead, single objective, but with constraints, the worst individual
+     * will be defined using the criteria specified in pagmo::sort_population_con().
+     * If the problem is multi-objective one single worst is not defined. In
+     * this case the user can still obtain a strict ordering of the population
+     * individuals by calling the pagmo::sort_population_mo() function.
+     *
+     * The pagmo::population::get_c_tol() tolerances are accounted by default.
+     * If different tolerances are required the other overloads can be used.
+     *
+     * @returns the index of the worst individual.
+     *
+     * @throws std::invalid_argument if the problem is multiobjective and thus
+     * a worst individual is not well defined, or if the population is empty.
+     * @throws unspecified any exception thrown by pagmo::sort_population_con().
+     */
+    size_type worst_idx() const
+    {
+        return worst_idx(get_problem().get_c_tol());
+    }
+
     /// Index of the worst individual (accounting for a vector tolerance)
     /**
      * If the problem is single-objective and unconstrained, the worst
@@ -374,7 +411,7 @@ public:
      *
      * @return index of the worst individual.
      */
-    size_type worst_idx(double tol = 0.) const
+    size_type worst_idx(double tol) const
     {
         vector_double tol_vector(m_prob.get_nf() - 1u, tol);
         return worst_idx(tol_vector);
@@ -384,6 +421,15 @@ public:
     /**
      * @return the champion decision vector.
      *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    If the problem is stochastic the champion is the individual that had the lowest fitness for
+     *    some lucky seed, not on average across seeds. Re-evaluating its decision vector may then result in a different
+     *    fitness.
+     *
+     * \endverbatim
+     *
      * @throw std::invalid_argument if the current problem is not single objective.
      */
     vector_double champion_x() const
@@ -392,12 +438,25 @@ public:
             pagmo_throw(std::invalid_argument,
                         "The Champion of a population can only be extracted in single objective problems");
         }
+        if (m_prob.is_stochastic()) {
+            pagmo_throw(std::invalid_argument,
+                        "The Champion of a population can only be extracted for non stochastic problems");
+        }
         return m_champion_x;
     }
 
     /// Champion fitness
     /**
      * @return the champion fitness.
+     *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    If the problem is stochastic the champion is the individual that had the lowest fitness for
+     *    some lucky seed, not on average across seeds. Re-evaluating its decision vector may then result in a different
+     *    fitness.
+     *
+     * \endverbatim
      *
      * @throw std::invalid_argument if the current problem is not single objective.
      */
@@ -406,6 +465,10 @@ public:
         if (m_prob.get_nobj() > 1u) {
             pagmo_throw(std::invalid_argument,
                         "The Champion of a population can only be extracted in single objective problems");
+        }
+        if (m_prob.is_stochastic()) {
+            pagmo_throw(std::invalid_argument,
+                        "The Champion of a population can only be extracted for non stochastic problems");
         }
         return m_champion_f;
     }
@@ -426,8 +489,13 @@ public:
      * Sets simultaneously the \f$i\f$-th individual decision vector
      * and fitness thus avoiding to trigger a fitness function evaluation.
      *
-     * **NOTE**: The user must make sure that the input fitness \p f makes sense
-     * as pagmo will only check its dimension.
+     * \verbatim embed:rst:leading-asterisk
+     * .. warning::
+     *
+     *    Pagmo will only control the input fitness ``f`` dimension, so the user can associate decision vector, fitness
+     *    vectors pairs that are not consistent with the fitness function.
+     *
+     * \endverbatim
      *
      * @param i individual's index in the population.
      * @param x a decision vector (chromosome).
@@ -445,14 +513,14 @@ public:
                                                    + ", while population has size: " + std::to_string(size()));
         }
         if (f.size() != m_prob.get_nf()) {
-            pagmo_throw(std::invalid_argument, "Trying to set a fitness of dimension: " + std::to_string(f.size())
-                                                   + ", while the problem's fitness has dimension: "
-                                                   + std::to_string(m_prob.get_nf()));
+            pagmo_throw(std::invalid_argument,
+                        "Trying to set a fitness of dimension: " + std::to_string(f.size())
+                            + ", while the problem's fitness has dimension: " + std::to_string(m_prob.get_nf()));
         }
         if (x.size() != m_prob.get_nx()) {
-            pagmo_throw(std::invalid_argument, "Trying to set a decision vector of dimension: "
-                                                   + std::to_string(x.size()) + ", while the problem's dimension is: "
-                                                   + std::to_string(m_prob.get_nx()));
+            pagmo_throw(std::invalid_argument,
+                        "Trying to set a decision vector of dimension: " + std::to_string(x.size())
+                            + ", while the problem's dimension is: " + std::to_string(m_prob.get_nx()));
         }
 
         // Reserve space for the incoming vectors. If any of this throws,
@@ -475,7 +543,12 @@ public:
      * value \p x and changes its fitness accordingly. The
      * individual's ID remains the same.
      *
-     * **NOTE** a call to this method triggers one fitness function evaluation.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    A call to this method triggers one fitness function evaluation.
+     *
+     * \endverbatim
      *
      * @param i individual's index in the population
      * @param x decision vector
@@ -498,9 +571,14 @@ public:
 
     /// Getter for the pagmo::problem.
     /**
-     * **NOTE**: the ability to extract a mutable reference to the problem is provided solely in order to
-     * allow calling non-const methods on the problem. Assigning the population's problem via a reference
-     * returned by this method is undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. warning::
+     *
+     *    The ability to extract a mutable reference to the problem is provided solely in order to
+     *    allow calling non-const methods on the problem. Assigning the population's problem via a reference
+     *    returned by this method is undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a reference to the internal pagmo::problem.
      */
@@ -563,7 +641,7 @@ public:
             stream(os, "\tDecision vector:\t", p.m_x[i], '\n');
             stream(os, "\tFitness vector:\t\t", p.m_f[i], '\n');
         }
-        if (p.get_problem().get_nobj() == 1u) {
+        if (p.get_problem().get_nobj() == 1u && !p.get_problem().is_stochastic()) {
             stream(os, "\nChampion decision vector: ", p.champion_x(), '\n');
             stream(os, "Champion fitness: ", p.champion_f(), '\n');
         }
@@ -644,5 +722,9 @@ private:
 };
 
 } // namespace pagmo
+
+#if defined(__GNUC__) && defined(__MINGW32__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif

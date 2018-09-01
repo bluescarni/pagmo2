@@ -3,9 +3,10 @@
 Coding a simple User Defined Problem
 ------------------------------------
 
-While pagmo provides a number of UDPs to help you test your own optimization strategy or user defined algorithm, the possibility
+While pagmo provides a number of UDPs (see :ref:`problems`) to help you test your own optimization strategy or user defined algorithm, the possibility
 to write your own UDP is at the core of pygmo's use. In this tutorial we will show how to code a UDP. Remember that UDPs are classes that can be used 
-to construct a :class:`~pygmo.problem` which, in turn, is what an :class:`~pygmo.algorithm` can solve.
+to construct a :class:`~pygmo.problem` which, in turn, is what an :class:`~pygmo.algorithm` can solve. See :ref:`py_tutorial_using_algorithm` and 
+:ref:`py_tutorial_using_problem` to learn the use of these core classes.
 
 We encourage the user to read the documentation of the class :class:`~pygmo.problem` to have a detailed list of methods that can be, or have to be,
 implemented in a UDP. To start simple we consider the simple problem of minimizing the two dimensional sphere function.
@@ -16,7 +17,8 @@ implemented in a UDP. To start simple we consider the simple problem of minimizi
      \mbox{subject to:} & -1 \le x_i \le 1, i = 1..2
    \end{array}
 
-In pagmo minimization is always assumed and should you need to maximize some objective function, just put a minus sign in front of that objective.
+.. note::
+   In pagmo minimization is always assumed and should you need to maximize some objective function, just put a minus sign in front of that objective.
 
 .. doctest::
 
@@ -41,13 +43,14 @@ Let's now build a :class:`~pygmo.problem` from our new UDP.
     >>> import pygmo as pg
     >>> prob = pg.problem(sphere_function())
 
-That easy! To inspect what type of problem pygmo has detected from our UDP we may print on screen:
+That's easy! To inspect what type of problem pygmo has detected from our UDP we may print on screen:
 
 .. doctest::
 
     >>> print(prob) #doctest: +SKIP
     Problem name: <class 'sphere_function'>
     	Global dimension:			2
+    	Integer dimension:			0
     	Fitness dimension:			1
     	Number of objectives:			1
     	Equality constraints dimension:		0
@@ -60,7 +63,7 @@ That easy! To inspect what type of problem pygmo has detected from our UDP we ma
     	Has hessians: false
     	User implemented hessians sparsity: false
     <BLANKLINE>
-    	Function evaluations: 0
+    	Fitness evaluations: 0
     <BLANKLINE>
     	Thread safety: none
     <BLANKLINE>
@@ -96,6 +99,7 @@ and to have a human readable name.
     >>> print(prob) #doctest: +NORMALIZE_WHITESPACE
     Problem name: Sphere Function
     	Global dimension:			3
+    	Integer dimension:			0
     	Fitness dimension:			1
     	Number of objectives:			1
     	Equality constraints dimension:		0
@@ -108,7 +112,7 @@ and to have a human readable name.
     	Has hessians: false
     	User implemented hessians sparsity: false
     <BLANKLINE>
-    	Function evaluations: 0
+    	Fitness evaluations: 0
     <BLANKLINE>
     	Thread safety: none
     <BLANKLINE>
@@ -144,7 +148,7 @@ that it is somehow malformed are high. Let's see some common mistakes.
     '<sphere_function object at 0x1108cad68>' of type '<class 'sphere_function'>': the method is either not present or not callable
 
 
-oops, I forgot to implement one of the two mandatory methods. In this case it is not possible to construct a :class:`~pygmo.problem`
+Oops, I forgot to implement one of the two mandatory methods. In this case it is not possible to construct a :class:`~pygmo.problem`
 and, when we try, we then get a rather helpful error message. 
 
 In other cases while the UDP is still malformed, the construction of :class:`~pygmo.problem` will succeed and the issue will
@@ -258,7 +262,7 @@ With a bit more elbow grease, we can further improve performance:
 
 Much better, right?
 
-.. note:: For more information on using Numba to speed up your python code see the `Numba documentation pages <http://numba.pydata.org/>`_.
+.. note:: For more information on using Numba to speed up your python code see the `Numba documentation pages <http://numba.pydata.org/>`__.
           In particular, note that only a limited part of NumPy and the python language in general is supported by this use.
 
 

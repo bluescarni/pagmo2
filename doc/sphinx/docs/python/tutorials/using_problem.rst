@@ -3,6 +3,8 @@
 Use of the class :class:`~pygmo.problem`
 =============================================
 
+.. image:: ../../images/prob_no_text.png
+
 The :class:`~pygmo.problem` class represents a generic optimization
 problem. The user codes the details of such a problem in a separate class (the
 user-defined problem, or UDP) which is then passed to :class:`~pygmo.problem`
@@ -26,6 +28,7 @@ Let us start:
     >>> print(prob) #doctest: +NORMALIZE_WHITESPACE
     Problem name: Multidimensional Rosenbrock Function
     	Global dimension:			5
+    	Integer dimension:			0
     	Fitness dimension:			1
     	Number of objectives:			1
     	Equality constraints dimension:		0
@@ -39,7 +42,7 @@ Let us start:
     	Has hessians: false
     	User implemented hessians sparsity: false
     <BLANKLINE>
-    	Function evaluations: 0
+    	Fitness evaluations: 0
         Gradient evaluations: 0
     <BLANKLINE>
     	Thread safety: basic
@@ -68,7 +71,7 @@ Lets check how a fitness computation increases the counter:
 .. doctest::
 
     >>> prob.fitness([1,2,3,4,5])
-    array([ 14814.])
+    array([14814.])
     >>> prob.get_fevals() == 1
     True
 

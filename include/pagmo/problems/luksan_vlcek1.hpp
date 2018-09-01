@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,10 +36,10 @@ see https://www.gnu.org/licenses/. */
 #include <utility>
 #include <vector>
 
-#include "../detail/constants.hpp"
-#include "../exceptions.hpp"
-#include "../problem.hpp" // needed for cereal registration macro
-#include "../types.hpp"
+#include <pagmo/detail/constants.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp> // needed for cereal registration macro
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -64,7 +64,7 @@ namespace pagmo
  * \f]
  *
  * See: Luksan, L., and Jan Vlcek. "Sparse and partially separable test problems for unconstrained and equality
- * constrained optimization." (1999). http://folk.uib.no/ssu029/Pdf_file/Luksan99.ps
+ * constrained optimization." (1999). http://hdl.handle.net/11104/0123965
  *
  */
 struct luksan_vlcek1 {

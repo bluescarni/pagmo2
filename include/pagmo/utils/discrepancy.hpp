@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -40,11 +40,11 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <vector>
 
-#include "../detail/custom_comparisons.hpp"
-#include "../detail/prime_numbers.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../types.hpp"
+#include <pagmo/detail/custom_comparisons.hpp>
+#include <pagmo/detail/prime_numbers.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -124,7 +124,7 @@ inline std::vector<double> sample_from_simplex(std::vector<double> in)
  * \tfrac{7}{8}, \tfrac{1}{16}, \tfrac{9}{16}, \tfrac{5}{16}, \tfrac{13}{16}, \tfrac{3}{16}, \tfrac{11}{16},
  * \tfrac{7}{16}, \tfrac{15}{16}, \ldots.\} \f$
  *
- * See: http://en.wikipedia.org/wiki/Van_der_Corput_sequence
+ * See: https://en.wikipedia.org/wiki/Van_der_Corput_sequence
  *
  */
 class van_der_corput

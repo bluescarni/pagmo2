@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -35,10 +35,10 @@ see https://www.gnu.org/licenses/. */
 #include <utility>
 #include <vector>
 
-#include "../detail/constants.hpp"
-#include "../exceptions.hpp"
-#include "../problem.hpp" // needed for cereal registration macro
-#include "../types.hpp"
+#include <pagmo/detail/constants.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp> // needed for cereal registration macro
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {

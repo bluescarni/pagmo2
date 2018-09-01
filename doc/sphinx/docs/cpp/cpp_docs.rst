@@ -29,15 +29,21 @@ Implemented algorithms
   algorithms/compass_search
   algorithms/de
   algorithms/de1220
+  algorithms/ihs
+  algorithms/ipopt
   algorithms/moead
   algorithms/mbh
   algorithms/cstrs_self_adaptive
   algorithms/nlopt
   algorithms/nsga2
   algorithms/pso
+  algorithms/pso_gen
   algorithms/sade
   algorithms/sea
+  algorithms/sga
   algorithms/simulated_annealing
+  algorithms/xnes
+
 
 Implemented problems
 ^^^^^^^^^^^^^^^^^^^^
@@ -56,11 +62,13 @@ Implemented problems
   problems/hock_schittkowsky_71
   problems/inventory
   problems/luksan_vlcek1
+  problems/minlp_rastrigin
   problems/translate
   problems/decompose
   problems/cec2006
   problems/cec2009
   problems/cec2013
+  problems/cec2014
   problems/unconstrain
 
 Implemented islands
@@ -70,6 +78,7 @@ Implemented islands
   :maxdepth: 1
 
   islands/thread_island
+  islands/fork_island
 
 Utilities
 ^^^^^^^^^
@@ -94,3 +103,4 @@ Various coding utilities.
   miscellanea/generic
   miscellanea/type_traits
   miscellanea/exceptions
+  miscellanea/utility_classes

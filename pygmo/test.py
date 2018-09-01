@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017 PaGMO development team
+# Copyright 2017-2018 PaGMO development team
 #
 # This file is part of the PaGMO library.
 #
@@ -42,6 +42,44 @@ class _prob(object):
         return [42]
 
 
+class _quick_prob:
+
+    def fitness(self, dv):
+        return [sum(dv)]
+
+    def get_bounds(self):
+        return ([0] * 10, [1] * 10)
+
+
+class _raise_exception:
+    counter = 0
+
+    def __init__(self, throw_at=3000):
+        self.throw_at = throw_at
+
+    def fitness(self, dv):
+        if type(self).counter == self.throw_at:
+            raise
+        type(self).counter += 1
+        return [0]
+
+    def get_bounds(self):
+        return ([0], [1])
+
+
+class _raise_exception_2:
+    counter = 0
+
+    def fitness(self, dv):
+        if _raise_exception_2.counter == 300:
+            raise
+        _raise_exception_2.counter += 1
+        return [0]
+
+    def get_bounds(self):
+        return ([0], [1])
+
+
 class core_test_case(_ut.TestCase):
     """Test case for core PyGMO functionality.
 
@@ -50,7 +88,9 @@ class core_test_case(_ut.TestCase):
     def runTest(self):
         import sys
         from numpy import random, all, array
-        from .core import _builtin, _test_to_vd, _type, _str, _callable, _deepcopy, _test_object_serialization as tos
+        from .core import _builtin, _test_to_vd, _test_to_vvd, _type, _str, _callable, _deepcopy, _test_object_serialization as tos
+        from . import __version__
+        self.assertTrue(__version__ != "")
         if sys.version_info[0] < 3:
             import __builtin__ as b
         else:
@@ -71,6 +111,10 @@ class core_test_case(_ut.TestCase):
         self.assert_(_test_to_vd((0., 1), 2))
         self.assert_(_test_to_vd(array([0., 1.]), 2))
         self.assert_(_test_to_vd(array([0, 1]), 2))
+        self.assert_(_test_to_vvd([[1., 2, 3], [4, 5, 6]], 2, 3))
+        self.assert_(_test_to_vvd(array([[1., 2, 3], [4, 5, 6]]), 2, 3))
+        self.assertRaises(TypeError, lambda: _test_to_vvd(
+            ([1., 2, 3], [4, 5, 6]), 2, 3))
         self.assertEqual(type(int), _type(int))
         self.assertEqual(str(123), _str(123))
         self.assertEqual(callable(1), _callable(1))
@@ -280,6 +324,37 @@ class pso_test_case(_ut.TestCase):
         log = uda.get_log()
 
 
+class de_test_case(_ut.TestCase):
+    """Test case for the UDA de
+
+    """
+
+    def runTest(self):
+        from .core import de
+        uda = de()
+        uda = de(gen=10000, F=0.5, CR=0.3, variant=9, ftol=1e-3, xtol=1e-2)
+        uda = de(gen=10000, F=0.5, CR=0.3, variant=9,
+                 ftol=1e-3, xtol=1e-2, seed=32)
+        self.assertEqual(uda.get_seed(), 32)
+        log = uda.get_log()
+
+
+class pso_gen_test_case(_ut.TestCase):
+    """Test case for the UDA pso_gen
+
+    """
+
+    def runTest(self):
+        from .core import pso_gen
+        uda = pso_gen()
+        uda = pso_gen(gen=1, omega=0.7298, eta1=2.05, eta2=2.05, max_vel=0.5,
+                      variant=5, neighb_type=2, neighb_param=4, memory=False)
+        uda = pso_gen(gen=1, omega=0.7298, eta1=2.05, eta2=2.05, max_vel=0.5,
+                      variant=5, neighb_type=2, neighb_param=4, memory=False, seed=32)
+        self.assertEqual(uda.get_seed(), 32)
+        log = uda.get_log()
+
+
 class bee_colony_test_case(_ut.TestCase):
     """Test case for the UDA bee_colony
 
@@ -349,9 +424,57 @@ class cmaes_test_case(_ut.TestCase):
         from .core import cmaes
         uda = cmaes()
         uda = cmaes(gen=1, cc=-1, cs=-1, c1=-1, cmu=-1,
-                    sigma0=0.5, ftol=1e-6, xtol=1e-6, memory=False)
+                    sigma0=0.5, ftol=1e-6, xtol=1e-6, memory=False, force_bounds=False)
         uda = cmaes(gen=1, cc=-1, cs=-1, c1=-1, cmu=-1, sigma0=0.5,
-                    ftol=1e-6, xtol=1e-6, memory=False, seed=32)
+                    ftol=1e-6, xtol=1e-6, memory=False, force_bounds=False, seed=32)
+        self.assertEqual(uda.get_seed(), 32)
+        seed = uda.get_seed()
+
+
+class xnes_test_case(_ut.TestCase):
+    """Test case for the UDA xnes
+
+    """
+
+    def runTest(self):
+        from .core import xnes
+        uda = xnes()
+        uda = xnes(gen=1, eta_mu=-1, eta_sigma=-1, eta_b=-1,
+                   sigma0=-1, ftol=1e-6, xtol=1e-6, memory=False, force_bounds=False)
+        uda = xnes(gen=1, eta_mu=-1, eta_sigma=-1, eta_b=-1, sigma0=-1,
+                   ftol=1e-6, xtol=1e-6, memory=False, force_bounds=False, seed=32)
+        self.assertEqual(uda.get_seed(), 32)
+        seed = uda.get_seed()
+
+
+class ihs_test_case(_ut.TestCase):
+    """Test case for the UDA ihs
+
+    """
+
+    def runTest(self):
+        from .core import ihs
+        uda = ihs()
+        uda = ihs(gen=1, phmcr=0.85, ppar_min=0.35,
+                  ppar_max=0.99, bw_min=1e-5, bw_max=1.)
+        uda = ihs(gen=1, phmcr=0.85, ppar_min=0.35,
+                  ppar_max=0.99, bw_min=1e-5, bw_max=1., seed=32)
+        self.assertEqual(uda.get_seed(), 32)
+        seed = uda.get_seed()
+
+
+class sga_test_case(_ut.TestCase):
+    """Test case for the UDA sga
+
+    """
+
+    def runTest(self):
+        from .core import sga
+        uda = sga()
+        uda = sga(gen=1, cr=.90, eta_c=1., m=0.02, param_m=1., param_s=2, crossover="exponential",
+                  mutation="polynomial", selection="tournament")
+        uda = sga(gen=1, cr=.90, eta_c=1., m=0.02, param_m=1., param_s=2, crossover="exponential",
+                  mutation="polynomial", selection="tournament", seed=32)
         self.assertEqual(uda.get_seed(), 32)
         seed = uda.get_seed()
 
@@ -364,7 +487,7 @@ class nsga2_test_case(_ut.TestCase):
     def runTest(self):
         from .core import nsga2
         uda = nsga2()
-        uda = nsga2(gen=1, cr=0.95, eta_c=10, m=0.01, eta_m=10, int_dim=0)
+        uda = nsga2(gen=1, cr=0.95, eta_c=10, m=0.01, eta_m=10)
         uda = nsga2(gen=1, cr=0.95, eta_c=10, m=0.01,
                     eta_m=10, int_dim=0, seed=32)
         self.assertEqual(uda.get_seed(), 32)
@@ -521,6 +644,107 @@ class nlopt_test_case(_ut.TestCase):
         del nl
         self.assertTrue(len(str(foo)) != 0)
         del foo
+
+
+class ipopt_test_case(_ut.TestCase):
+    """Test case for the UDA ipopt
+
+    """
+
+    def runTest(self):
+        from .core import ipopt, algorithm, luksan_vlcek1, problem, population
+        ip = ipopt()
+        # Check the def-cted state.
+        self.assertEqual(ip.get_last_opt_result(), 0)
+        self.assertEqual(ip.get_log(), [])
+        self.assertEqual(ip.get_numeric_options(), {})
+        self.assertEqual(ip.get_integer_options(), {})
+        self.assertEqual(ip.get_numeric_options(), {})
+        self.assertEqual(ip.selection, "best")
+        self.assertEqual(ip.replacement, "best")
+        self.assertTrue(len(str(algorithm(ip))) != 0)
+
+        # Options testing.
+        ip.set_string_option("marge", "simpson")
+        self.assertEqual(ip.get_string_options(), {"marge": "simpson"})
+        ip.set_string_options({"homer": "simpson", "bart": "simpson"})
+        self.assertEqual(ip.get_string_options(), {
+                         "marge": "simpson", "bart": "simpson", "homer": "simpson"})
+        ip.reset_string_options()
+        self.assertEqual(ip.get_string_options(), {})
+
+        ip.set_integer_option("marge", 0)
+        self.assertEqual(ip.get_integer_options(), {"marge": 0})
+        ip.set_integer_options({"homer": 1, "bart": 2})
+        self.assertEqual(ip.get_integer_options(), {
+                         "marge": 0, "bart": 2, "homer": 1})
+        ip.reset_integer_options()
+        self.assertEqual(ip.get_integer_options(), {})
+
+        ip.set_numeric_option("marge", 0.)
+        self.assertEqual(ip.get_numeric_options(), {"marge": 0.})
+        ip.set_numeric_options({"homer": 1., "bart": 2.})
+        self.assertEqual(ip.get_numeric_options(), {
+                         "marge": 0., "bart": 2., "homer": 1.})
+        ip.reset_numeric_options()
+        self.assertEqual(ip.get_numeric_options(), {})
+
+        # Select/replace.
+        self.assertEqual(ip.replacement, "best")
+        ip.replacement = "worst"
+        self.assertEqual(ip.replacement, "worst")
+
+        def _():
+            ip.replacement = "rr"
+        self.assertRaises(ValueError, _)
+        ip.replacement = 12
+        self.assertEqual(ip.replacement, 12)
+
+        def _():
+            ip.replacement = -1
+        self.assertRaises(OverflowError, _)
+
+        self.assertEqual(ip.selection, "best")
+        ip.selection = "worst"
+        self.assertEqual(ip.selection, "worst")
+
+        def _():
+            ip.selection = "rr"
+        self.assertRaises(ValueError, _)
+        ip.selection = 12
+        self.assertEqual(ip.selection, 12)
+
+        def _():
+            ip.selection = -1
+        self.assertRaises(OverflowError, _)
+
+        ip.set_random_sr_seed(12)
+        self.assertRaises(OverflowError, lambda: ip.set_random_sr_seed(-1))
+
+        ip = ipopt()
+        algo = algorithm(ip)
+        algo.set_verbosity(5)
+        prob = problem(luksan_vlcek1(20))
+        prob.c_tol = [1E-6] * 18
+        pop = population(prob, 20)
+        pop = algo.evolve(pop)
+        self.assertTrue(len(algo.extract(ipopt).get_log()) != 0)
+
+        # Pickling.
+        from pickle import dumps, loads
+        ip = ipopt()
+        ip.set_numeric_option("tol", 1E-7)
+        algo = algorithm(ip)
+        algo.set_verbosity(5)
+        prob = problem(luksan_vlcek1(20))
+        prob.c_tol = [1E-6] * 18
+        pop = population(prob, 20)
+        algo.evolve(pop)
+        self.assertEqual(str(algo), str(loads(dumps(algo))))
+        self.assertEqual(algo.extract(ipopt).get_log(), loads(
+            dumps(algo)).extract(ipopt).get_log())
+        self.assertEqual(algo.extract(ipopt).get_numeric_options(), loads(
+            dumps(algo)).extract(ipopt).get_numeric_options())
 
 
 class null_problem_test_case(_ut.TestCase):
@@ -687,6 +911,68 @@ class dtlz_test_case(_ut.TestCase):
         udp.p_distance(population(udp, 20))
 
 
+class minlp_rastrigin_test_case(_ut.TestCase):
+    """Test case for the MINLP Rastrigin
+
+    """
+
+    def runTest(self):
+        from .core import minlp_rastrigin, problem, population
+        udp = minlp_rastrigin(dim_c=2, dim_i=3)
+        prob = problem(udp)
+        self.assertTrue(prob.get_nx() == 5)
+        self.assertTrue(prob.get_nix() == 3)
+        self.assertTrue(prob.get_ncx() == 2)
+        pop = population(udp, 1)
+        self.assertTrue(int(pop.get_x()[0][-1]) == pop.get_x()[0][-1])
+        self.assertTrue(int(pop.get_x()[0][-2]) == pop.get_x()[0][-2])
+        self.assertTrue(int(pop.get_x()[0][-3]) == pop.get_x()[0][-3])
+        self.assertTrue(int(pop.get_x()[0][0]) != pop.get_x()[0][0])
+        self.assertTrue(int(pop.get_x()[0][1]) != pop.get_x()[0][1])
+
+
+class random_decision_vector_test_case(_ut.TestCase):
+    """Test case for random_decision_vector
+
+    """
+
+    def runTest(self):
+        from .core import random_decision_vector, set_global_rng_seed
+        set_global_rng_seed(42)
+        x = random_decision_vector(lb=[1.1, 2.1, -3], ub=[2.1, 3.4, 5], nix=1)
+        self.assertTrue(int(x[-1]) == x[-1])
+        self.assertTrue(int(x[1]) != x[1])
+        set_global_rng_seed(42)
+        y = random_decision_vector(lb=[1.1, 2.1, -3], ub=[2.1, 3.4, 5], nix=1)
+        self.assertTrue((x == y).all())
+        nan = float("nan")
+        inf = float("inf")
+        self.assertRaises(
+            ValueError, lambda: random_decision_vector([1, 2], [0, 3]))
+        self.assertRaises(
+            ValueError, lambda: random_decision_vector([1, -inf], [0, 32]))
+        self.assertRaises(
+            ValueError, lambda: random_decision_vector([1, 2, 3], [0, 3]))
+        self.assertRaises(
+            ValueError, lambda: random_decision_vector([0, 2, 3], [1, 4, nan]))
+        self.assertRaises(
+            ValueError, lambda: random_decision_vector([0, 2, nan], [1, 4, 4]))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, nan, 3], [1, nan, 4]))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, 2, 3], [1, 4, 5], 4))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, 2, 3.1], [1, 4, 5], 1))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, 2, 3], [1, 4, 5.2], 1))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, -1.1, 3], [1, 2, 5], 2))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, -1.1, -inf], [1, 2, inf], 2))
+        self.assertRaises(ValueError, lambda: random_decision_vector(
+            [0, -1.1, inf], [1, 2, inf], 2))
+
+
 class luksan_vlcek1_test_case(_ut.TestCase):
     """Test case for the UDP Luksan Vlcek 1
 
@@ -730,6 +1016,20 @@ class cec2013_test_case(_ut.TestCase):
         except ImportError:
             return
         udp = cec2013(prob_id=3, dim=10)
+
+
+class cec2014_test_case(_ut.TestCase):
+    """Test case for the UDP cec2014
+
+    """
+
+    def runTest(self):
+        try:
+            # NOTE: cec2014 is not always present (see MSVC issue).
+            from .core import cec2014, population
+        except ImportError:
+            return
+        udp = cec2014(prob_id=3, dim=10)
 
 
 class translate_test_case(_ut.TestCase):
@@ -1060,10 +1360,131 @@ class cstrs_self_adaptive_test_case(_ut.TestCase):
         cstrs_self_adaptive(algo=algorithm(null_algorithm()), seed=5, iters=4)
 
 
+class decorator_problem_test_case(_ut.TestCase):
+    """Test case for the decorator meta-problem
+
+    """
+
+    def runTest(self):
+        from . import decorator_problem as dp, problem
+        from .core import null_problem, rosenbrock
+
+        # Default construction.
+        d = dp()
+        self.assertTrue(isinstance(d.inner_problem, problem))
+        self.assertFalse(d.inner_problem.extract(null_problem) is None)
+        self.assertTrue(d.get_decorator("fitness") is None)
+
+        # C++ problem, test we forward properly the problem properties.
+        rb = rosenbrock()
+        pr = problem(rb)
+        d = dp(prob=rb)
+        self.assertEqual(type(d.inner_problem.extract(rosenbrock)), rosenbrock)
+        self.assertTrue((pr.get_bounds()[0] == d.get_bounds()[0]).all())
+        self.assertTrue((pr.get_bounds()[1] == d.get_bounds()[1]).all())
+        self.assertEqual(pr.get_nec(), d.get_nec())
+        self.assertEqual(pr.get_nic(), d.get_nic())
+        self.assertEqual(pr.get_nix(), d.get_nix())
+        self.assertEqual(pr.get_nobj(), d.get_nobj())
+        # Check that we made a copy of rb on construction.
+        self.assertTrue(id(d.inner_problem.extract(rosenbrock)) != id(rb))
+        # Try construction from a problem object.
+        d = dp(prob=pr)
+        self.assertEqual(type(d.inner_problem.extract(rosenbrock)), rosenbrock)
+        self.assertTrue((pr.get_bounds()[0] == d.get_bounds()[0]).all())
+        self.assertTrue((pr.get_bounds()[1] == d.get_bounds()[1]).all())
+        self.assertEqual(pr.get_nec(), d.get_nec())
+        self.assertEqual(pr.get_nic(), d.get_nic())
+        self.assertEqual(pr.get_nix(), d.get_nix())
+        self.assertEqual(pr.get_nobj(), d.get_nobj())
+        # Check that we made a copy of pr on construction.
+        self.assertTrue(id(d.inner_problem) != id(pr))
+
+        # Check that a non callable decorator throws.
+        self.assertRaises(TypeError, lambda: dp(
+            prob=rb, fitness_decorator=None))
+        with self.assertRaises(TypeError) as cm:
+            dp(prob=rb, fitness_decorator=None)
+        err = cm.exception
+        self.assertEqual(str(err), "Cannot register the decorator for the 'fitness' method: the supplied object "
+                         "'{}' is not callable.".format(None))
+
+        # Test the extra info bits.
+        d = problem(dp(prob=rb))
+        self.assertTrue("No registered decorators." in str(d))
+        self.assertTrue("[decorated]" in str(d))
+        d = problem(dp(prob=rb, fitness_decorator=lambda f: f))
+        self.assertTrue("Registered decorators:" in str(d))
+        self.assertTrue("fitness" in str(d))
+        self.assertTrue("[decorated]" in str(d))
+
+        # Test the get_decorator() method.
+        d = dp(prob=pr)
+        self.assertTrue(d.get_decorator("fitness") is None)
+        d = dp(prob=pr, fitness_decorator=lambda f: f)
+        self.assertFalse(d.get_decorator("fitness") is None)
+        self.assertEqual(d.get_decorator("fitness")("hello"), "hello")
+        with self.assertRaises(TypeError) as cm:
+            d.get_decorator(3)
+        err = cm.exception
+        self.assertEqual(str(err), "The input parameter 'fname' must be a string, "
+                         "but it is of type '{}' instead.".format(int))
+
+        # Decorate a few extra methods.
+        class any_decor(object):
+            def __init__(self, s):
+                self._s = s
+
+            def __call__(self, f):
+                def wrapper(prob, *args, **kwargs):
+                    setattr(prob, self._s + "_decorated", True)
+                    return f(prob, *args, **kwargs)
+                return wrapper
+        dmeths = ["get_nobj", "get_nec", "get_nic", "get_nix",
+                  "has_gradient", "has_gradient_sparsity", "has_hessians",
+                  "has_hessians_sparsity", "has_set_seed", "get_name",
+                  "get_extra_info"]
+        decors = dict((_+"_decorator", any_decor(_)) for _ in dmeths)
+        d = dp(prob=rb, **decors)
+        for _ in dmeths:
+            getattr(d, _)()
+            self.assertTrue(getattr(d, _ + "_decorated"))
+
+        # Run an evolution in an mp_island of a decorated problem, if possible.
+        import sys
+        import os
+        # The mp island requires either Windows or at least Python 3.4.
+        if os.name != 'nt' and (sys.version_info[0] < 3 or (sys.version_info[0] == 3 and sys.version_info[1] < 4)):
+            return
+        from . import archipelago, de, mp_island
+
+        # fitness logging decorator.
+        def f_log_decor(orig_fitness_function):
+            def new_fitness_function(self, dv):
+                if hasattr(self, "dv_log"):
+                    self.dv_log.append(dv)
+                else:
+                    self.dv_log = [dv]
+                return orig_fitness_function(self, dv)
+            return new_fitness_function
+
+        a = archipelago(5, algo=de(), prob=dp(rosenbrock(), fitness_decorator=f_log_decor),
+                        pop_size=10, udi=mp_island(), seed=5)
+        a.evolve()
+        a.wait_check()
+        for isl in a:
+            self.assertTrue(
+                len(isl.get_population().problem.extract(dp).dv_log) > 5)
+
+
 class archipelago_test_case(_ut.TestCase):
     """Test case for the archipelago class.
 
     """
+
+    def __init__(self, level):
+        _ut.TestCase.__init__(self)
+        self._level = level
 
     def runTest(self):
         self.run_init_tests()
@@ -1073,6 +1494,10 @@ class archipelago_test_case(_ut.TestCase):
         self.run_io_tests()
         self.run_pickle_tests()
         self.run_champions_tests()
+        self.run_status_tests()
+        if self._level > 0:
+            self.run_torture_test_0()
+            self.run_torture_test_1()
 
     def run_init_tests(self):
         from . import archipelago, de, rosenbrock, population, null_problem, thread_island, mp_island
@@ -1143,10 +1568,10 @@ class archipelago_test_case(_ut.TestCase):
             5, pop=population(), algo=de(), seed=1))
 
     def run_evolve_tests(self):
-        from . import archipelago, de, rosenbrock, mp_island
+        from . import archipelago, de, rosenbrock, mp_island, evolve_status
         from copy import deepcopy
         a = archipelago()
-        self.assertFalse(a.busy())
+        self.assertTrue(a.status == evolve_status.idle)
         a = archipelago(5, algo=de(), prob=rosenbrock(), pop_size=10)
         a.evolve(10)
         a.evolve(10)
@@ -1155,12 +1580,12 @@ class archipelago_test_case(_ut.TestCase):
         a.evolve(10)
         a.evolve(10)
         str(a)
-        a.get()
+        a.wait_check()
         # Copy while evolving.
         a.evolve(10)
         a.evolve(10)
         a2 = deepcopy(a)
-        a.get()
+        a.wait_check()
         import sys
         import os
         # The mp island requires either Windows or at least Python 3.4.
@@ -1175,12 +1600,16 @@ class archipelago_test_case(_ut.TestCase):
         a.evolve(10)
         a.evolve(10)
         str(a)
-        a.get()
+        a.wait_check()
         # Copy while evolving.
         a.evolve(10)
         a.evolve(10)
         a2 = deepcopy(a)
-        a.get()
+        a.wait_check()
+        # Throws on wait_check().
+        a = archipelago(5, algo=de(), prob=rosenbrock(), pop_size=3)
+        a.evolve()
+        self.assertRaises(ValueError, lambda: a.wait_check())
 
     def run_access_tests(self):
         from . import archipelago, de, rosenbrock
@@ -1236,7 +1665,7 @@ class archipelago_test_case(_ut.TestCase):
         a.push_back(algo=de(), prob=rosenbrock(), size=11)
         a.push_back(algo=de(), prob=rosenbrock(), size=11)
         a.push_back(algo=de(), prob=rosenbrock(), size=11)
-        a.get()
+        a.wait_check()
         self.assertEqual(len(a), 18)
         for i in range(5):
             self.assertTrue(a[i].get_algorithm().is_(de))
@@ -1286,11 +1715,74 @@ class archipelago_test_case(_ut.TestCase):
         self.assertRaises(ValueError, lambda: a.get_champions_x())
         self.assertRaises(ValueError, lambda: a.get_champions_f())
 
+    def run_status_tests(self):
+        from . import archipelago, de, rosenbrock, evolve_status
+        a = archipelago(5, algo=de(), prob=rosenbrock(), pop_size=3)
+        self.assertTrue(a.status == evolve_status.idle)
+        a.evolve()
+        a.wait()
+        self.assertTrue(a.status == evolve_status.idle_error)
+        self.assertRaises(ValueError, lambda: a.wait_check())
+        self.assertTrue(a.status == evolve_status.idle)
 
-def run_test_suite():
+    def run_torture_test_0(self):
+        from . import archipelago, de, ackley
+
+        # pure C++
+        archi = archipelago(n=1000, algo=de(
+            10), prob=ackley(5), pop_size=10, seed=32)
+        archi.evolve()
+        archi.wait_check()
+
+        # python prob
+        archi2 = archipelago(n=1000, algo=de(
+            10), prob=_quick_prob(), pop_size=10, seed=32)
+        archi2.evolve()
+        archi2.wait_check()
+
+        # python prob with exceptions (will throw in osx as too many threads
+        # will be opened)
+        def _():
+            archi3 = archipelago(n=1000, algo=simulated_annealing(
+                10, 1, 50), prob=_raise_exception(throw_at=1001), pop_size=1, seed=32)
+            archi3.evolve()
+            archi3.wait_check()
+
+        self.assertRaises(BaseException, _)
+
+    def run_torture_test_1(self):
+        # A torture test inspired by the heisenbug detected by Dario on OSX.
+
+        from . import archipelago, sade, ackley
+
+        archi = archipelago(n=5, algo=sade(
+            50, ftol=0, xtol=0), prob=_raise_exception_2(), pop_size=20)
+        archi.evolve()
+        self.assertRaises(BaseException, lambda: archi.wait_check())
+
+        archi = archipelago(n=5, algo=sade(
+            50), prob=_raise_exception_2(), pop_size=20)
+        archi.evolve()
+        self.assertRaises(BaseException, lambda: archi.wait_check())
+        archi.wait_check()
+
+        archi = archipelago(n=1100, algo=sade(
+            500), prob=ackley(50), pop_size=50)
+        archi = archipelago(n=5, algo=sade(
+            50), prob=_raise_exception_2(), pop_size=20)
+        archi.evolve()
+        archi = archipelago(n=1100, algo=sade(
+            500), prob=ackley(50), pop_size=50)
+        archi.evolve()
+
+
+def run_test_suite(level=0):
     """Run the full test suite.
 
     This function will raise an exception if at least one test fails.
+
+    Args:
+        level(``int``): the test level (higher values run longer tests)
 
     """
     from . import _problem_test, _algorithm_test, _island_test, set_global_rng_seed
@@ -1305,15 +1797,19 @@ def run_test_suite():
     suite.addTest(_problem_test.problem_test_case())
     suite.addTest(_algorithm_test.algorithm_test_case())
     suite.addTest(_island_test.island_test_case())
-    suite.addTest(_island_test.mp_island_test_case())
-    suite.addTest(_island_test.ipyparallel_island_test_case())
+    suite.addTest(_island_test.mp_island_test_case(level))
+    suite.addTest(_island_test.ipyparallel_island_test_case(level))
+    suite.addTest(de_test_case())
     suite.addTest(pso_test_case())
+    suite.addTest(pso_gen_test_case())
     suite.addTest(bee_colony_test_case())
     suite.addTest(compass_search_test_case())
     suite.addTest(sa_test_case())
     suite.addTest(moead_test_case())
+    suite.addTest(sga_test_case())
+    suite.addTest(ihs_test_case())
     suite.addTest(population_test_case())
-    suite.addTest(archipelago_test_case())
+    suite.addTest(archipelago_test_case(level))
     suite.addTest(null_problem_test_case())
     suite.addTest(hypervolume_test_case())
     suite.addTest(mo_utils_test_case())
@@ -1321,24 +1817,38 @@ def run_test_suite():
     suite.addTest(global_rng_test_case())
     suite.addTest(estimate_sparsity_test_case())
     suite.addTest(estimate_gradient_test_case())
+    suite.addTest(random_decision_vector_test_case())
     try:
         from .core import cmaes
         suite.addTest(cmaes_test_case())
+    except ImportError:
+        pass
+    try:
+        from .core import xnes
+        suite.addTest(xnes_test_case())
     except ImportError:
         pass
     suite.addTest(dtlz_test_case())
     suite.addTest(cec2006_test_case())
     suite.addTest(cec2009_test_case())
     suite.addTest(cec2013_test_case())
+    suite.addTest(cec2014_test_case())
     suite.addTest(luksan_vlcek1_test_case())
+    suite.addTest(minlp_rastrigin_test_case())
     suite.addTest(translate_test_case())
     suite.addTest(decompose_test_case())
     suite.addTest(unconstrain_test_case())
     suite.addTest(mbh_test_case())
     suite.addTest(cstrs_self_adaptive_test_case())
+    suite.addTest(decorator_problem_test_case())
     try:
         from .core import nlopt
         suite.addTest(nlopt_test_case())
+    except ImportError:
+        pass
+    try:
+        from .core import ipopt
+        suite.addTest(ipopt_test_case())
     except ImportError:
         pass
     test_result = _ut.TextTestRunner(verbosity=2).run(suite)

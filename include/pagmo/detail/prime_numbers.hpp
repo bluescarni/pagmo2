@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -32,7 +32,7 @@ see https://www.gnu.org/licenses/. */
 #include <array>
 #include <stdexcept>
 
-#include "../exceptions.hpp"
+#include <pagmo/exceptions.hpp>
 
 #define PAGMO_PRIME_MAX 1601u
 
@@ -156,7 +156,7 @@ inline unsigned int prime(unsigned int n)
 }
 
 #undef PAGMO_PRIME_MAX
-}
-}
+} // namespace detail
+} // namespace pagmo
 
 #endif

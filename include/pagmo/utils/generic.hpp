@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -42,11 +42,11 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <utility>
 
-#include "../detail/custom_comparisons.hpp"
-#include "../exceptions.hpp"
-#include "../problem.hpp"
-#include "../rng.hpp"
-#include "../types.hpp"
+#include <pagmo/detail/custom_comparisons.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -58,8 +58,13 @@ namespace pagmo
  * \f$ x \f$ will be such that \f$lb \le x < ub\f$. If \f$lb == ub\f$ then \f$lb\f$ is
  * returned.
  *
- * **NOTE**: This has to be preferred to std::uniform_real<double>(r_engine) as it
- * performs checks that avoid undefined behaviour in pagmo.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
+ *
+ *    This helper function has to be preferred to ``std::uniform_real<double>(r_engine)`` as it
+ *    also performs additional checks avoiding undefined behaviour in pagmo.
+ *
+ * \endverbatim
  *
  * Example:
  *
@@ -112,7 +117,8 @@ inline double uniform_real_from_range(double lb, double ub, detail::random_engin
  * both the lower and upper bounds are finite numbers, then the \f$i\f$-th
  * component of the randomly generated pagmo::vector_double will be such that
  * \f$lb_i \le x_i < ub_i\f$. If \f$lb_i == ub_i\f$ then \f$lb_i\f$ is
- * returned.
+ * returned. If an integer part is specified then the corresponding components
+ * are guaranteed to be integers.
  *
  * Example:
  *
@@ -120,28 +126,42 @@ inline double uniform_real_from_range(double lb, double ub, detail::random_engin
  * std::mt19937 r_engine(32u);
  * auto x = random_decision_vector({{1,3},{3,5}}, r_engine); // a random vector
  * auto x = random_decision_vector({{1,3},{1,3}}, r_engine); // the vector {1,3}
+ * auto x = random_decision_vector({{1,3},{1,5}}, r_engine, 1); // the vector {1,3} or {1,4} or {1,5}
  * @endcode
  *
  * @param bounds an <tt>std::pair</tt> containing the bounds
  * @param r_engine a <tt>std::mt19937</tt> random engine
+ * @param nix size of the integer part
  *
  * @throws std::invalid_argument if:
  * - the bounds are not of equal length, they have zero size, they contain NaNs or infs,
- *   or \f$ \mathbf{ub} < \mathbf {lb}\f$,
+ *   \f$ \mathbf{ub} < \mathbf {lb}\f$, the integer part is larger than the bounds size or
+ *   the bounds of the integer part are not integers.
  * - if \f$ub_i-lb_i\f$ is larger than implementation-defined value
  *
  * @returns a pagmo::vector_double containing a random decision vector
  */
 inline vector_double random_decision_vector(const std::pair<vector_double, vector_double> &bounds,
-                                            detail::random_engine_type &r_engine)
+                                            detail::random_engine_type &r_engine, vector_double::size_type nix = 0u)
 {
-    // This will check for consistent vector lengths, non-null sizes, lb <= ub and no NaNs.
-    detail::check_problem_bounds(bounds);
-    auto dim = bounds.first.size();
-    vector_double retval(dim);
+    // This will check for consistent vector lengths, non-null sizes, lb <= ub, no NaNs and consistency in
+    // the integer part
+    detail::check_problem_bounds(bounds, nix);
+    auto nx = bounds.first.size();
+    vector_double retval(nx);
+    auto ncx = nx - nix;
 
-    for (decltype(dim) i = 0u; i < dim; ++i) {
+    for (decltype(ncx) i = 0u; i < ncx; ++i) {
         retval[i] = uniform_real_from_range(bounds.first[i], bounds.second[i], r_engine);
+    }
+    for (auto i = ncx; i < nx; ++i) {
+        // To ensure a uniform int distribution from a uniform float distribution we floor the result
+        // adding 1 tot he upper bound so that e.g.
+        // [0,1] -> draw a float from [0,2] and floor it (that is 0. or 1. with 50%)
+        // [3,3] -> draw a float from [3,4] and floor it (that is always 3.)
+        double lb = bounds.first[i], ub = bounds.second[i];
+        auto tmp = uniform_real_from_range(lb, ub + 1, r_engine);
+        retval[i] = std::floor(tmp);
     }
     return retval;
 }
@@ -152,7 +172,8 @@ inline vector_double random_decision_vector(const std::pair<vector_double, vecto
  * both the lower and upper bounds are finite numbers, then the \f$i\f$-th
  * component of the randomly generated pagmo::vector_double will be such that
  * \f$lb_i \le x_i < ub_i\f$. If \f$lb_i == ub_i\f$ then \f$lb_i\f$ is
- * returned.
+ * returned. If an integer part is specified then the corresponding components
+ * are guaranteed to be integers.
  *
  * Example:
  *
@@ -160,22 +181,26 @@ inline vector_double random_decision_vector(const std::pair<vector_double, vecto
  * std::mt19937 r_engine(32u);
  * auto x = random_decision_vector({1,3},{3,5}, r_engine); // a random vector
  * auto x = random_decision_vector({1,3},{1,3}, r_engine); // the vector {1,3}
+ * auto x = random_decision_vector({{1,3},{1,5}}, r_engine, 1); // the vector {1,3} or {1,4} or {1,5}
  * @endcode
  *
  * @param lb a vector_double containing the lower bounds
  * @param ub a vector_double containing the upper bounds
  * @param r_engine a <tt>std::mt19937</tt> random engine
+ * @param nix size of the integer part
  *
  * @throws std::invalid_argument if:
- * - the bounds are not of equal length, they contain NaNs or infs, or \f$ \mathbf{ub} < \mathbf {lb}\f$,
+ * - the bounds are not of equal length, they have zero size, they contain NaNs or infs,
+ *   \f$ \mathbf{ub} < \mathbf {lb}\f$, the integer part is larger than the bounds size or
+ *   the bounds of the integer part are not integers.
  * - if \f$ub_i-lb_i\f$ is larger than implementation-defined value
  *
  * @returns a pagmo::vector_double containing a random decision vector
  */
 inline vector_double random_decision_vector(const vector_double &lb, const vector_double &ub,
-                                            detail::random_engine_type &r_engine)
+                                            detail::random_engine_type &r_engine, vector_double::size_type nix = 0u)
 {
-    return random_decision_vector({lb, ub}, r_engine);
+    return random_decision_vector({lb, ub}, r_engine, nix);
 }
 
 /// Binomial coefficient

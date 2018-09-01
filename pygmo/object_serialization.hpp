@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -29,7 +29,7 @@ see https://www.gnu.org/licenses/. */
 #ifndef PYGMO_OBJECT_SERIALIZATION_HPP
 #define PYGMO_OBJECT_SERIALIZATION_HPP
 
-#include "python_includes.hpp"
+#include <pygmo/python_includes.hpp>
 
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/python/import.hpp>
@@ -38,7 +38,7 @@ see https://www.gnu.org/licenses/. */
 
 #include <pagmo/serialization.hpp>
 
-#include "common_utils.hpp"
+#include <pygmo/common_utils.hpp>
 
 namespace cereal
 {
@@ -53,12 +53,12 @@ inline void save(Archive &archive, const boost::python::object &o)
     // http://stackoverflow.com/questions/27518554/c-cereal-serialize-c-style-array
     using namespace boost::python;
     // This will dump to a bytes object.
-    object tmp = import("dill").attr("dumps")(o);
+    object tmp = import("cloudpickle").attr("dumps")(o);
     // This gives a null-terminated char * to the internal
     // content of the bytes object.
     auto ptr = PyBytes_AsString(tmp.ptr());
     if (!ptr) {
-        pygmo_throw(PyExc_TypeError, "dill's dumps() function did not return a bytes object");
+        pygmo_throw(PyExc_TypeError, "cloudpickle's dumps() function did not return a bytes object");
     }
     // NOTE: this will be the length of the bytes object *without* the terminator.
     const auto size = len(tmp);
@@ -76,8 +76,8 @@ inline void load(Archive &archive, boost::python::object &o)
     std::vector<char> v;
     archive(v);
     auto b = pygmo::make_bytes(v.data(), boost::numeric_cast<Py_ssize_t>(v.size()));
-    o = import("dill").attr("loads")(b);
+    o = import("cloudpickle").attr("loads")(b);
 }
-}
+} // namespace cereal
 
 #endif

@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,10 +36,11 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <vector>
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../population.hpp"
-#include "../utils/constrained.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/algorithms/not_population_based.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/utils/constrained.hpp>
 
 namespace pagmo
 {
@@ -70,21 +71,32 @@ namespace pagmo
  * a standard in the scientific computing community for exactly the reason observed
  * by Davidon: it is slow but sure'.
  *
- * **NOTE** This algorithm does not work for multi-objective problems, nor for stochastic problems.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * **NOTE** The search range is defined relative to the box-bounds. Hence, unbounded problems
- * will produce an error.
+ *    This algorithm does not work for multi-objective problems, nor for stochastic problems.
  *
- * **NOTE** Compass search is a fully deterministic algorithms and will produce identical results if its evolve method
- * is
- * called from two identical populations.
+ * .. note::
  *
- * See: Kolda, Lewis, Torczon: 'Optimization by Direct Search: New Perspectives on Some Classical and Modern Methods'
- * published in the SIAM Journal Vol. 45, No. 3, pp. 385-482 (2003)
+ *    The search range is defined relative to the box-bounds. Hence, unbounded problems
+ *    will produce an error.
  *
- * See: http://www.cs.wm.edu/~va/research/sirev.pdf
+ * .. note::
+ *
+ *    Compass search is a fully deterministic algorithms and will produce identical results if its evolve method is
+ *    called from two identical populations.
+ *
+ * .. seealso::
+ *
+ *    Kolda, Lewis, Torczon: 'Optimization by Direct Search: New Perspectives on Some Classical and Modern Methods'
+ *    published in the SIAM Journal Vol. 45, No. 3, pp. 385-482 (2003)
+ *
+ *    http://www.cs.wm.edu/~va/research/sirev.pdf
+ *
+ * \endverbatim
+ *
  */
-class compass_search
+class compass_search : public not_population_based
 {
 public:
     /// Single entry of the log (feval, best fitness, n. constraints violated, violation norm, range)
@@ -96,7 +108,7 @@ public:
     /**
      * Constructs compass_search
      *
-     * @param max_fevals maximum number of function evaluations
+     * @param max_fevals maximum number of fitness evaluations
      * @param start_range start range
      * @param stop_range stop range
      * @param reduction_coeff range reduction coefficient
@@ -170,10 +182,9 @@ public:
         // No throws, all valid: we clear the logs
         m_log.clear();
 
-        // We run the compass search starting from the best individual of the population
-        auto best_idx = pop.best_idx();
-        auto cur_best_x = pop.get_x()[best_idx];
-        auto cur_best_f = pop.get_f()[best_idx];
+        // We init the starting point
+        auto sel_xf = select_individual(pop);
+        vector_double cur_best_x(std::move(sel_xf.first)), cur_best_f(std::move(sel_xf.second));
 
         // We need some auxiliary variables
         bool flag = false;
@@ -223,8 +234,8 @@ public:
 
                 // 1 - Every 50 lines print the column names
                 if (count % 50u == 1u) {
-                    print("\n", std::setw(7), "Fevals:", std::setw(15), "Best:", std::setw(15), "Violated:",
-                          std::setw(15), "Viol. Norm:", std::setw(15), "Range:", '\n');
+                    print("\n", std::setw(7), "Fevals:", std::setw(15), "Best:", std::setw(15),
+                          "Violated:", std::setw(15), "Viol. Norm:", std::setw(15), "Range:", '\n');
                 }
                 // 2 - Print
                 auto c1eq = detail::test_eq_constraints(cur_best_f.data() + 1, cur_best_f.data() + 1 + neq,
@@ -250,7 +261,7 @@ public:
         }
 
         // Force the current best into the original population
-        pop.set_xf(best_idx, cur_best_x, cur_best_f);
+        replace_individual(pop, cur_best_x, cur_best_f);
         return pop;
     };
 
@@ -282,7 +293,7 @@ public:
      *     159        95.4502              0              0    7.62939e-06
      * Exit condition -- range: 7.62939e-06 <= 1e-05
      * @endcode
-     * Fevals, is the number of function evaluations made, Best is the best fitness
+     * Fevals, is the number of fitness evaluations made, Best is the best fitness
      * Violated and Viol.Norm are the number of constraints violated and the L2 norm of the violation (accounting for
      the
      * tolerances returned by problem::get_c_tol, and Range is the range used at that point of the search
@@ -341,7 +352,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Compass Search";
+        return "CS: Compass Search";
     }
     /// Extra informations
     /**
@@ -384,7 +395,8 @@ public:
     template <typename Archive>
     void serialize(Archive &ar)
     {
-        ar(m_max_fevals, m_start_range, m_stop_range, m_reduction_coeff, m_verbosity, m_log);
+        ar(cereal::base_class<not_population_based>(this), m_max_fevals, m_start_range, m_stop_range, m_reduction_coeff,
+           m_verbosity, m_log);
     }
 
 private:
@@ -394,9 +406,14 @@ private:
     double m_reduction_coeff;
     unsigned int m_verbosity;
     mutable log_type m_log;
+    // Deleting the methods load save public in base as to avoid conflict with serialize
+    template <typename Archive>
+    void load(Archive &ar) = delete;
+    template <typename Archive>
+    void save(Archive &ar) const = delete;
 };
 
-} // namespaces
+} // namespace pagmo
 
 PAGMO_REGISTER_ALGORITHM(pagmo::compass_search)
 

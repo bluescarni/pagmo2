@@ -31,11 +31,11 @@
 #include <string>
 #include <vector>
 
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../types.hpp"
-#include "hv_algos/hv_algorithm.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/hv_algos/hv_algorithm.hpp>
 
 namespace pagmo
 {
@@ -157,8 +157,13 @@ public:
     * alter the original set, but may result in unexpected behaviour when used incorrectly
     * (e.g. requesting the computation twice out of the same object)
     *
-    * **NOTE** When this flag is set to true the object can raliably be used only once to compute
-    * the hypervolume
+    * \verbatim embed:rst:leading-asterisk
+    * .. warning::
+    *
+    *    When this flag is set to true the object can reliably be used only once to compute
+    *    the hypervolume. Successive usages are undefined behaviour.
+    *
+    * \endverbatim
     *
     * @param copy_points boolean value stating whether the hypervolume computation may use original set
     */
@@ -213,8 +218,13 @@ public:
     * The result is a point that is necessarily dominated by all other points, frequently used
     * for hypervolume computations.
     *
-    * **NOTE** This point is different from the one computed by pagmo::nadir as only the non dominated front
-    * is considered in that method (also its complexity is thus higher)
+    * \verbatim embed:rst:leading-asterisk
+    * .. note::
+    *
+    *    This point is different from the one computed by :cpp:func:`pagmo::nadir()` as only the non dominated front
+    *    is considered in that method (also its complexity is thus higher)
+    *
+    * \endverbatim
     *
     * @param offset value that can be added to each objective to assure strict domination
     *
@@ -542,7 +552,7 @@ namespace detail
 *
 * @return expected number of operations
 */
-double expected_hv_operations(vector_double::size_type n, vector_double::size_type d)
+inline double expected_hv_operations(vector_double::size_type n, vector_double::size_type d)
 {
     if (d <= 3u) {
         return static_cast<double>(d) * static_cast<double>(n) * std::log(n); // hv3d

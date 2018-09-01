@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -39,12 +39,10 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <type_traits>
 
-#include "../exceptions.hpp"
-#include "../problem.hpp"
-#include "../serialization.hpp"
-#include "../type_traits.hpp"
-#include "../types.hpp"
-#include "../utils/multi_objective.hpp" // pagmo::decompose_objectives
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/multi_objective.hpp> // pagmo::decompose_objectives
 
 namespace pagmo
 {
@@ -80,18 +78,26 @@ namespace pagmo
  * \f$d_2 = \vert (\mathbf f - \mathbf z^*) - d_1 \hat {\mathbf i}_{\lambda})\vert\f$ and
  * \f$ \hat {\mathbf i}_{\lambda} = \frac{\boldsymbol \lambda}{\vert \boldsymbol \lambda \vert}\f$.
  *
- * **NOTE** The reference point \f$z^*\f$ is often taken as the ideal point and as such
- * it may be allowed to change during the course of the optimization / evolution. The argument adapt_ideal activates
- * this behaviour so that whenever a new ideal point is found \f$z^*\f$ is adapted accordingly.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * **NOTE** The use of pagmo::decompose discards gradients and hessians so that if the original user defined problem
- * implements them, they will not be available in the decomposed problem. The reason for this behaviour is that
- * the Tchebycheff decomposition is not differentiable. Also, the use of this class was originally intended for
- * derivative-free optimization.
+ *    The reference point :math:`z^*` is often taken as the ideal point and as such
+ *    it may be allowed to change during the course of the optimization / evolution. The argument adapt_ideal activates
+ *    this behaviour so that whenever a new ideal point is found :math:`z^*` is adapted accordingly.
  *
- * See: "Q. Zhang -- MOEA/D: A Multiobjective Evolutionary Algorithm Based on Decomposition"
+ * .. note::
  *
- * See: https://en.wikipedia.org/wiki/Multi-objective_optimization#Scalarizing_multi-objective_optimization_problems
+ *    The use of :cpp:class:`pagmo::decompose` discards gradients and hessians so that if the original user defined
+ *    problem implements them, they will not be available in the decomposed problem. The reason for this behaviour is
+ *    that the Tchebycheff decomposition is not differentiable. Also, the use of this class was originally intended for
+ *    derivative-free optimization.
+ *
+ * .. seealso::
+ *
+ *    "Q. Zhang -- MOEA/D: A Multiobjective Evolutionary Algorithm Based on Decomposition"
+ *    https://en.wikipedia.org/wiki/Multi-objective_optimization#Scalarizing
+ *
+ * \endverbatim
  */
 class decompose
 {
@@ -107,12 +113,15 @@ public:
      *
      * @throws unspecified any exception thrown by the other constructor.
      */
-    decompose() : decompose(null_problem{2u}, {0.5, 0.5}, {0., 0.})
-    {
-    }
+    decompose() : decompose(null_problem{2u}, {0.5, 0.5}, {0., 0.}) {}
     /// Constructor from problem.
     /**
-     * **NOTE** This constructor is enabled only if \p T can be used to construct a pagmo::problem.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if ``T`` can be used to construct a :cpp:class:`pagmo::problem`.
+     *
+     * \endverbatim
      *
      * Wraps a user-defined problem (UDP) or a pagmo::problem so that its fitness will be decomposed using one of three
      * decomposition methods. pagmo::decompose objects are user-defined problems that can be used
@@ -225,7 +234,13 @@ public:
     /**
      * Returns the fitness of the original multi-objective problem used to construct the decomposed problem.
      *
-     * **NOTE** This is *not* the fitness of the decomposed problem, that is returned by calling decompose::fitness().
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This is *not* the fitness of the decomposed problem. Such a fitness is instead returned by calling
+     *    :cpp:func:`decompose::fitness()`.
+     *
+     * \endverbatim
      *
      * @param x input decision vector.
      *
@@ -238,6 +253,7 @@ public:
         // We call the fitness of the original multiobjective problem
         return m_problem.fitness(x);
     }
+
     /// Number of objectives.
     /**
      * @return one.
@@ -246,6 +262,16 @@ public:
     {
         return 1u;
     }
+
+    /// Integer dimension
+    /**
+     * @return the integer dimension of the inner problem.
+     */
+    vector_double::size_type get_nix() const
+    {
+        return m_problem.get_nix();
+    }
+
     /// Box-bounds.
     /**
      * Forwards the bounds computations to the inner pagmo::problem.
@@ -258,12 +284,18 @@ public:
     {
         return m_problem.get_bounds();
     }
+
     /// Gets the current reference point.
     /**
      * The reference point to be used for the decomposition. This is only
      * used for Tchebycheff and boundary interception decomposition methods.
      *
-     * **NOTE** The reference point is adapted at each call of the fitness.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The reference point is adapted (and thus may change) at each call of the fitness.
+     *
+     * \endverbatim
      *
      * @return the reference point.
      */
@@ -271,6 +303,7 @@ public:
     {
         return m_z;
     }
+
     /// Problem name.
     /**
      * This method will append <tt>[decomposed]</tt> to the name of the inner problem.
@@ -281,6 +314,7 @@ public:
     {
         return m_problem.get_name() + " [decomposed]";
     }
+
     /// Extra information.
     /**
      * This method will add info about the decomposition method to the extra info provided
@@ -346,9 +380,14 @@ public:
     /**
      * Returns a reference to the inner pagmo::problem.
      *
-     * **NOTE** The ability to extract a non const reference is provided only in order to allow to call
-     * non-const methods on the internal pagmo::problem instance. Assigning a new pagmo::problem via
-     * this reference is undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The ability to extract a non const reference is provided only in order to allow to call
+     *    non-const methods on the internal :cpp:class:`pagmo::problem` instance. Assigning a new
+     *    :class:`pagmo::problem` via this reference is undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a reference to the inner pagmo::problem.
      */
@@ -383,7 +422,7 @@ private:
     // adapts the decomposition reference point whenever a better point is computed
     bool m_adapt_ideal;
 };
-}
+} // namespace pagmo
 
 PAGMO_REGISTER_PROBLEM(pagmo::decompose)
 

@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -113,9 +113,7 @@ struct mo_sto {
     {
         return {{0., 0.}, {1., 1.}};
     }
-    void set_seed(unsigned int)
-    {
-    }
+    void set_seed(unsigned int) {}
 };
 
 struct mo_many {
@@ -181,6 +179,7 @@ BOOST_AUTO_TEST_CASE(moead_evolve_test)
     // We test a call on many objectives (>5) to trigger the relative lines cropping the screen output
     population pop4{problem{mo_many{}}, 56u, 23u};
     user_algo1.evolve(pop4);
+    BOOST_CHECK(std::get<3>(user_algo1.get_log()[0]).size() == 6u);
 }
 
 BOOST_AUTO_TEST_CASE(moead_setters_getters_test)

@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -35,10 +35,16 @@ see https://www.gnu.org/licenses/. */
 #include <utility>
 #include <vector>
 
-#include "../detail/constants.hpp"
-#include "../exceptions.hpp"
-#include "../problem.hpp" // needed for cereal registration macro
-#include "../types.hpp"
+#include <pagmo/detail/constants.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp> // needed for cereal registration macro
+#include <pagmo/types.hpp>
+
+// Let's disable a few compiler warnings emitted by the cec2006 code.
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 
 namespace pagmo
 {
@@ -191,12 +197,20 @@ const std::vector<vector_double> cec2006_statics<T>::m_best_known = {
  * on constrained real-parameter optimization problems that was organized in the
  * framework of the 2006 IEEE Congress on Evolutionary Computation.
  *
- * **NOTE**: the code for these UDAs is adapted from the original C code distributed during the competition and
- * linked below.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * **NOTE** all problems are constrained, continuous, single objective problems.
+ *    The code for these UDAs is adapted from the original C code distributed during the competition and linked below.
  *
- * See: http://www.ntu.edu.sg/home/EPNSugan/index_files/CEC-06/CEC06.htm
+ * .. note::
+ *
+ *    All problems are constrained, continuous, single objective problems.
+ *
+ * .. seealso:
+ *
+ *    http://www.ntu.edu.sg/home/EPNSugan/index_files/CEC-06/CEC06.htm
+ *
+ * \endverbatim
  */
 class cec2006 : private detail::cec2006_statics<>
 {
@@ -1170,5 +1184,9 @@ const std::vector<typename cec2006_statics<T>::func_ptr> cec2006_statics<T>::m_c
 } // namespace pagmo
 
 PAGMO_REGISTER_PROBLEM(pagmo::cec2006)
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif

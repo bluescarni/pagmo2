@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,14 +36,15 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp" // needed for the cereal macro
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../problem.hpp"
-#include "../problems/decompose.hpp"
-#include "../rng.hpp"
-#include "../utils/multi_objective.hpp" // crowding_distance, etc..
+#include <pagmo/algorithm.hpp> // needed for the cereal macro
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/problems/decompose.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>         // uniform_real_from_range
+#include <pagmo/utils/multi_objective.hpp> // crowding_distance, etc..
 
 namespace pagmo
 {
@@ -73,23 +74,21 @@ public:
 
     /// Constructor
     /**
-    * Constructs the NSGA II user defined algorithm.
-    *
-    * @param[in] gen Number of generations to evolve.
-    * @param[in] cr Crossover probability.
-    * @param[in] eta_c Distribution index for crossover.
-    * @param[in] m Mutation probability.
-    * @param[in] eta_m Distribution index for mutation.
-    * @param int_dim the dimension of the decision vector to be considered as integer (the last int_dim entries will be
-    * treated as integers when mutation and crossover are applied)
-    * @param seed seed used by the internal random number generator (default is random)
-    * @throws std::invalid_argument if \p cr is not \f$ \in [0,1[\f$, \p m is not \f$ \in [0,1]\f$, \p eta_c is not in
-    * [1,100[ or \p eta_m is not in [1,100[.
-    */
-    nsga2(unsigned int gen = 1u, double cr = 0.95, double eta_c = 10., double m = 0.01, double eta_m = 50.,
-          vector_double::size_type int_dim = 0u, unsigned int seed = pagmo::random_device::next())
-        : m_gen(gen), m_cr(cr), m_eta_c(eta_c), m_m(m), m_eta_m(eta_m), m_int_dim(int_dim), m_e(seed), m_seed(seed),
-          m_verbosity(0u), m_log()
+     * Constructs the NSGA II user defined algorithm.
+     *
+     * @param[in] gen Number of generations to evolve.
+     * @param[in] cr Crossover probability.
+     * @param[in] eta_c Distribution index for crossover.
+     * @param[in] m Mutation probability.
+     * @param[in] eta_m Distribution index for mutation.
+     * @param seed seed used by the internal random number generator (default is random)
+     * @throws std::invalid_argument if \p cr is not \f$ \in [0,1[\f$, \p m is not \f$ \in [0,1]\f$, \p eta_c is not in
+     * [1,100[ or \p eta_m is not in [1,100[.
+     */
+    nsga2(unsigned gen = 1u, double cr = 0.95, double eta_c = 10., double m = 0.01, double eta_m = 50.,
+          unsigned seed = pagmo::random_device::next())
+        : m_gen(gen), m_cr(cr), m_eta_c(eta_c), m_m(m), m_eta_m(eta_m), m_e(seed), m_seed(seed), m_verbosity(0u),
+          m_log()
     {
         if (cr >= 1. || cr < 0.) {
             pagmo_throw(std::invalid_argument, "The crossover probability must be in the [0,1[ range, while a value of "
@@ -99,14 +98,14 @@ public:
             pagmo_throw(std::invalid_argument, "The mutation probability must be in the [0,1] range, while a value of "
                                                    + std::to_string(cr) + " was detected");
         }
-        if (eta_c < 1. || eta_c >= 100.) {
+        if (eta_c < 1. || eta_c > 100.) {
             pagmo_throw(std::invalid_argument,
-                        "The distribution index for crossover must be in [1, 100[, while a value of "
+                        "The distribution index for crossover must be in [1, 100], while a value of "
                             + std::to_string(eta_c) + " was detected");
         }
-        if (eta_m < 1. || eta_m >= 100.) {
+        if (eta_m < 1. || eta_m > 100.) {
             pagmo_throw(std::invalid_argument,
-                        "The distribution index for mutation must be in [1, 100[, while a value of "
+                        "The distribution index for mutation must be in [1, 100], while a value of "
                             + std::to_string(eta_m) + " was detected");
         }
     }
@@ -148,13 +147,6 @@ public:
             pagmo_throw(std::invalid_argument,
                         "This is a multiobjective algortihm, while number of objectives detected in " + prob.get_name()
                             + " is " + std::to_string(prob.get_nf()));
-        }
-        if (m_int_dim > dim) {
-            pagmo_throw(
-                std::invalid_argument,
-                "The problem dimension is: " + std::to_string(dim)
-                    + ", while this instance of NSGA-II has been instantiated requesting an integer dimension of: "
-                    + std::to_string(m_int_dim));
         }
         if (NP < 5u || (NP % 4 != 0u)) {
             pagmo_throw(std::invalid_argument,
@@ -344,7 +336,7 @@ public:
      */
     std::string get_name() const
     {
-        return "NSGA-II";
+        return "NSGA-II:";
     }
     /// Extra informations
     /**
@@ -358,9 +350,8 @@ public:
         stream(ss, "\tGenerations: ", m_gen);
         stream(ss, "\n\tCrossover probability: ", m_cr);
         stream(ss, "\n\tDistribution index for crossover: ", m_eta_c);
-        stream(ss, "\n\\tMutation probability: ", m_m);
+        stream(ss, "\n\tMutation probability: ", m_m);
         stream(ss, "\n\tDistribution index for mutation: ", m_eta_m);
-        stream(ss, "\n\tSize of the integer part: ", m_int_dim);
         stream(ss, "\n\tSeed: ", m_seed);
         stream(ss, "\n\tVerbosity: ", m_verbosity);
         return ss.str();
@@ -388,7 +379,7 @@ public:
     template <typename Archive>
     void serialize(Archive &ar)
     {
-        ar(m_gen, m_cr, m_eta_c, m_m, m_eta_m, m_e, m_int_dim, m_seed, m_verbosity, m_log);
+        ar(m_gen, m_cr, m_eta_c, m_m, m_eta_m, m_e, m_seed, m_verbosity, m_log);
     }
 
 private:
@@ -408,8 +399,8 @@ private:
     {
         // Decision vector dimensions
         auto D = pop.get_problem().get_nx();
-        auto Di = m_int_dim;
-        auto Dc = D - Di;
+        auto Di = pop.get_problem().get_nix();
+        auto Dc = pop.get_problem().get_ncx();
         // Problem bounds
         const auto bounds = pop.get_problem().get_bounds();
         const auto &lb = bounds.first;
@@ -505,8 +496,7 @@ private:
     {
         // Decision vector dimensions
         auto D = pop.get_problem().get_nx();
-        auto Di = m_int_dim;
-        auto Dc = D - Di;
+        auto Dc = pop.get_problem().get_ncx();
         // Problem bounds
         const auto bounds = pop.get_problem().get_bounds();
         const auto &lb = bounds.first;
@@ -545,10 +535,12 @@ private:
 
         // This implements the integer mutation for an individual
         for (decltype(D) j = Dc; j < D; ++j) {
-            if (drng(m_e) <= m_m) {
-                std::uniform_int_distribution<vector_double::size_type> ra_num(
-                    static_cast<vector_double::size_type>(lb[j]), static_cast<vector_double::size_type>(ub[j]));
-                child[j] = static_cast<double>(ra_num(m_e));
+            if (drng(m_e) < m_m) {
+                // We need to draw a random integer in [lb, ub]. Since these are floats we
+                // cannot use integer distributions without risking overflows, hence we use a real
+                // distribution
+                auto mutated = std::floor(uniform_real_from_range(lb[j], ub[j] + 1, m_e));
+                child[j] = mutated;
             }
         }
     }
@@ -558,7 +550,6 @@ private:
     double m_eta_c;
     double m_m;
     double m_eta_m;
-    vector_double::size_type m_int_dim;
     mutable detail::random_engine_type m_e;
     unsigned int m_seed;
     unsigned int m_verbosity;

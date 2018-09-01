@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -40,9 +40,9 @@ see https://www.gnu.org/licenses/. */
 #include <stdexcept>
 #include <vector>
 
-#include "../exceptions.hpp"
-#include "../problem.hpp"
-#include "../types.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -127,7 +127,12 @@ sparsity_pattern estimate_sparsity(Func f, const vector_double &x, double dx = 1
  *
  * @throw std::invalid_argument if \p f returns vectors of different sizes when perturbing \p x.
  *
- * **NOTE** The gradient returned is assumed as dense: elements equal to zero are not excluded.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
+ *
+ *    The gradient returned is assumed as dense: elements equal to zero are not excluded.
+ *
+ * \endverbatim
  */
 template <typename Func>
 vector_double estimate_gradient(Func f, const vector_double &x, double dx = 1e-8)
@@ -190,7 +195,12 @@ vector_double estimate_gradient(Func f, const vector_double &x, double dx = 1e-8
  *
  * @throw std::invalid_argument if \p f returns vectors of different sizes when perturbing \p x.
  *
- * **NOTE** The gradient returned is assumed as dense: elements equal to zero are not excluded.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
+ *
+ *    The gradient returned is assumed as dense: elements equal to zero are not excluded.
+ *
+ * \endverbatim
  */
 template <typename Func>
 vector_double estimate_gradient_h(Func f, const vector_double &x, double dx = 1e-2)
@@ -238,7 +248,7 @@ vector_double estimate_gradient_h(Func f, const vector_double &x, double dx = 1e
     }
     return gradient;
 }
-}
+} // namespace pagmo
 // namespace pagmo
 
 #endif

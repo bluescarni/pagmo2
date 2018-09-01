@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -29,7 +29,7 @@ see https://www.gnu.org/licenses/. */
 #ifndef PYGMO_COMMON_UTILS_HPP
 #define PYGMO_COMMON_UTILS_HPP
 
-#include "python_includes.hpp"
+#include <pygmo/python_includes.hpp>
 
 #include <algorithm>
 #include <array>
@@ -40,29 +40,34 @@ see https://www.gnu.org/licenses/. */
 #include <boost/python/extract.hpp>
 #include <boost/python/handle.hpp>
 #include <boost/python/import.hpp>
+#include <boost/python/list.hpp>
 #include <boost/python/make_function.hpp>
 #include <boost/python/module.hpp>
 #include <boost/python/object.hpp>
 #include <boost/python/stl_iterator.hpp>
 #include <boost/python/tuple.hpp>
+#include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <typeinfo>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include <pagmo/exceptions.hpp>
+#include <pagmo/serialization.hpp>
 #include <pagmo/type_traits.hpp>
 #include <pagmo/types.hpp>
 
-#include "numpy.hpp"
+#include <pygmo/numpy.hpp>
 
 #if defined(_MSC_VER)
 
-#include "function_traits.hpp"
+#include <pygmo/function_traits.hpp>
 
 #endif
 
@@ -180,7 +185,7 @@ inline bp::object v_to_a(const std::vector<T> &v)
     bp::object retval{bp::handle<>(ret)};
     if (v.size()) {
         // Copy over the data.
-        std::copy(v.begin(), v.end(), static_cast<T *>(PyArray_DATA((PyArrayObject *)(ret))));
+        std::copy(v.begin(), v.end(), static_cast<T *>(PyArray_DATA(reinterpret_cast<PyArrayObject *>(ret))));
     }
     // Hand over to boost python.
     return retval;
@@ -205,7 +210,7 @@ inline bp::object vv_to_a(const std::vector<std::vector<T>> &v)
     // Hand over to BP for exception-safe behaviour.
     bp::object retval{bp::handle<>(ret)};
     if (nrows) {
-        auto data = static_cast<T *>(PyArray_DATA((PyArrayObject *)(ret)));
+        auto data = static_cast<T *>(PyArray_DATA(reinterpret_cast<PyArrayObject *>(ret)));
         for (const auto &i : v) {
             if (i.size() != ncols) {
                 pygmo_throw(PyExc_ValueError, "cannot convert a vector of vectors to a NumPy 2D array "
@@ -276,7 +281,7 @@ inline pagmo::vector_double to_vd(const bp::object &o)
         if (!n) {
             bp::throw_error_already_set();
         }
-        return ad_to_vd((PyArrayObject *)(bp::object(bp::handle<>(n)).ptr()));
+        return ad_to_vd(reinterpret_cast<PyArrayObject *>(bp::object(bp::handle<>(n)).ptr()));
     }
     // If o is not a numpy array, just try to iterate over it and extract doubles.
     bp::stl_input_iterator<double> begin(o), end;
@@ -334,11 +339,10 @@ inline std::vector<pagmo::vector_double> to_vvd(const bp::object &o)
         if (!n) {
             bp::throw_error_already_set();
         }
-        return a_to_vvd((PyArrayObject *)(bp::object(bp::handle<>(n)).ptr()));
+        return a_to_vvd(reinterpret_cast<PyArrayObject *>(bp::object(bp::handle<>(n)).ptr()));
     }
     pygmo_throw(PyExc_TypeError, ("cannot convert the type '" + str(type(o))
-                                  + "' to a "
-                                    "vector of vector_double: only lists of doubles and NumPy arrays of doubles "
+                                  + "' to a vector of vector_double: only lists of doubles and NumPy arrays of doubles "
                                     "are supported")
                                      .c_str());
 }
@@ -398,7 +402,7 @@ inline std::vector<unsigned> to_vu(const bp::object &o)
         if (!n) {
             bp::throw_error_already_set();
         }
-        return a_to_vu((PyArrayObject *)(bp::object(bp::handle<>(n)).ptr()));
+        return a_to_vu(reinterpret_cast<PyArrayObject *>(bp::object(bp::handle<>(n)).ptr()));
     }
     pygmo_throw(PyExc_TypeError, ("cannot convert the type '" + str(type(o))
                                   + "' to a vector of ints: only lists of ints and NumPy arrays of ints are supported")
@@ -426,7 +430,7 @@ inline bp::object sp_to_a(const pagmo::sparsity_pattern &s)
     };
     // NOTE: same as above, avoid asking for the data pointer if size is zero.
     if (s.size()) {
-        auto data = static_cast<int_type *>(PyArray_DATA((PyArrayObject *)(ret)));
+        auto data = static_cast<int_type *>(PyArray_DATA(reinterpret_cast<PyArrayObject *>(ret)));
         for (decltype(s.size()) i = 0u; i < s.size(); ++i) {
             try {
                 *(data + i + i) = boost::numeric_cast<int_type>(s[i].first);
@@ -528,7 +532,7 @@ inline pagmo::sparsity_pattern to_sp(const bp::object &o)
         }
         // Hand over to BP for nice RAII and exception safety.
         auto bp_n = bp::object(bp::handle<>(n));
-        return a_to_sp((PyArrayObject *)bp_n.ptr());
+        return a_to_sp(reinterpret_cast<PyArrayObject *>(bp_n.ptr()));
     }
     pagmo::sparsity_pattern retval;
     // We will try to interpret o as a collection of generic python objects, and each element
@@ -632,7 +636,7 @@ inline auto ct2pt_invoke(Func &&func, Tup &&tup)
     return ct2pt_invoke_helper(std::forward<Func>(func), std::forward<Tup>(tup),
                                pagmo::detail::make_index_sequence<std::tuple_size<pagmo::decay_t<Tup>>::value>{});
 }
-}
+} // namespace detail
 
 // Utility function to convert a C++ tuple into a Python tuple.
 template <typename... Args>
@@ -760,6 +764,62 @@ inline void add_property(bp::class_<T> &c, const char *name, G getter, const bp:
 {
     add_property(c, name, bp::make_function(getter), setter, doc);
 }
+
+// This helper is intended for use in the exposition suites for APs. Its job is to take
+// the polymorphic serialization info registered from the AP and merge it into pygmo's
+// serialization machinery. This is necessary because cereal's mechanism for the registration
+// of polymorphic types will end up creating distinct "global" objects in the APs, and pygmo
+// needs the info in these objects in order to be able to correctly serialize/deserialize
+// the algos/probs/etc. implemented in the APs. See also the explanation in core.cpp.
+inline void merge_s11n_data_for_ap()
+{
+    auto cur_in_ptr = &cereal::detail::StaticObject<
+                           cereal::detail::InputBindingMap<cereal::PortableBinaryInputArchive>>::getInstance()
+                           .map;
+    auto pygmo_in_ptr = reinterpret_cast<decltype(cur_in_ptr)>(
+        bp::extract<std::uintptr_t>(bp::import("pygmo").attr("core").attr("_s11n_in_address"))());
+
+    auto cur_out_ptr = &cereal::detail::StaticObject<
+                            cereal::detail::OutputBindingMap<cereal::PortableBinaryOutputArchive>>::getInstance()
+                            .map;
+    auto pygmo_out_ptr = reinterpret_cast<decltype(cur_out_ptr)>(
+        bp::extract<std::uintptr_t>(bp::import("pygmo").attr("core").attr("_s11n_out_address"))());
+
+    pygmo_in_ptr->insert(cur_in_ptr->begin(), cur_in_ptr->end());
+    pygmo_out_ptr->insert(cur_out_ptr->begin(), cur_out_ptr->end());
 }
+
+// A small helper to get the list of currently-registered APs.
+inline bp::list get_ap_list()
+{
+    // Get the list of registered APs.
+    auto &ap_set = *reinterpret_cast<std::unordered_set<std::string> *>(
+        bp::extract<std::uintptr_t>(bp::import("pygmo").attr("core").attr("_ap_set_address"))());
+    bp::list retval;
+    for (const auto &s : ap_set) {
+        retval.append(s);
+    }
+    return retval;
+}
+
+// Try to  import all the APs listed in l. This is used when deserializing a pygmo class.
+// If an AP cannot be imported, ignore the error and move to the next AP.
+inline void import_aps(const bp::list &l)
+{
+    bp::stl_input_iterator<std::string> begin(l), end;
+    for (; begin != end; ++begin) {
+        try {
+            bp::import(begin->c_str());
+        } catch (const bp::error_already_set &) {
+            assert(::PyErr_Occurred());
+            if (::PyErr_ExceptionMatches(::PyExc_ImportError)) {
+                ::PyErr_Clear();
+            } else {
+                throw;
+            }
+        }
+    }
+}
+} // namespace pygmo
 
 #endif

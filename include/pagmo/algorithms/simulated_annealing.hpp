@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,11 +36,12 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/algorithms/not_population_based.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
 
 namespace pagmo
 {
@@ -56,22 +57,36 @@ namespace pagmo
  * The implementation provided here allows to obtain a reannealing procedure via subsequent calls
  * to the pagmo::simulated_annealing::evolve() method.
  *
+ * \verbatim embed:rst:leading-asterisk
  *
- * **NOTE** When selecting the starting and final temperature values it helps to think about the tempertaure
- * as the deterioration in the objective function value that still has a 37% chance of being accepted.
+ * .. warning::
  *
- * **NOTE** The algorithm does not work for multi-objective problems, stochastic problems nor for
- * constrained problems
+ *    The algorithm is not suitable for multi-objective problems, nor for
+ *    constrained or stochastic optimization
  *
- * **NOTE** At each call of the evolve method the number of function evaluations will be
- * \p n_T_adj * \p n_range_adj * \p bin_size times the problem dimension
+ * .. note::
  *
- * See: Corana, A., Marchesi, M., Martini, C., & Ridella, S. (1987). Minimizing multimodal
- * functions of continuous variables with the “simulated annealing” algorithm Corrigenda
- * for this article is available here. ACM Transactions on Mathematical Software (TOMS), 13(3), 262-280.
- * http://people.sc.fsu.edu/~inavon/5420a/corana.pdf
+ *    When selecting the starting and final temperature values it helps to think about the tempertaure
+ *    as the deterioration in the objective function value that still has a 37% chance of being accepted.
+ *
+ * .. note::
+ *
+ *    At each call of the evolve method the number of fitness evaluations will be
+ *    `n_T_adj` * `n_range_adj` * `bin_size` times the problem dimension
+ *
+ * .. seealso::
+ *
+ *    Corana, A., Marchesi, M., Martini, C., & Ridella, S. (1987). Minimizing multimodal
+ *    functions of continuous variables with the “simulated annealing” algorithm Corrigenda
+ *    for this article is available here. ACM Transactions on Mathematical Software (TOMS), 13(3), 262-280.
+ *
+ * .. seealso::
+ *
+ *    http://people.sc.fsu.edu/~inavon/5420a/corana.pdf
+ *
+ * \endverbatim
  */
-class simulated_annealing
+class simulated_annealing : public not_population_based
 {
 public:
     /// Single entry of the log (fevals, best, current, avg_range, temperature)
@@ -173,10 +188,9 @@ public:
 
         std::uniform_real_distribution<double> drng(0., 1.); // to generate a number in [0, 1)
 
-        // Starting point is the best individual
-        auto best_idx = pop.best_idx();
-        const auto &x0 = pop.get_x()[best_idx];
-        const auto &fit0 = pop.get_f()[best_idx];
+        // We init the starting point
+        auto sel_xf = select_individual(pop);
+        vector_double x0(std::move(sel_xf.first)), fit0(std::move(sel_xf.second));
         // Determines the coefficient to decrease the temperature
         const double Tcoeff = std::pow(m_Tf / m_Ts, 1.0 / static_cast<double>(m_n_T_adj));
         // Stores the current and new points
@@ -233,14 +247,14 @@ public:
                         }
                         // 2 - We log to screen
                         if (m_verbosity > 0u) {
-                            // Prints a log line every m_verbosity function evaluations
+                            // Prints a log line every m_verbosity fitness evaluations
                             auto fevals_count = prob.get_fevals() - fevals0;
                             if (fevals_count >= (count - 1u) * m_verbosity) {
                                 // 1 - Every 50 lines print the column names
                                 if (count % 50u == 1u) {
                                     print("\n", std::setw(7), "Fevals:", std::setw(15), "Best:", std::setw(15),
-                                          "Current:", std::setw(15), "Mean range:", std::setw(15), "Temperature:",
-                                          '\n');
+                                          "Current:", std::setw(15), "Mean range:", std::setw(15),
+                                          "Temperature:", '\n');
                                 }
                                 auto avg_range
                                     = std::accumulate(step.begin(), step.end(), 0.) / static_cast<double>(step.size());
@@ -275,9 +289,9 @@ public:
             // Cooling schedule
             currentT *= Tcoeff;
         }
-        // We update the decision vector in pop
+        // We update the decision vector in pop, but only if things have improved
         if (best_f[0] <= fit0[0]) {
-            pop.set_xf(best_idx, best_x, best_f);
+            replace_individual(pop, best_x, best_f);
         }
         return pop;
     };
@@ -286,7 +300,7 @@ public:
      * Sets the verbosity level of the screen output and of the
      * log returned by get_log(). \p level can be:
      * - 0: no verbosity
-     * - >=1: will print and log one line at minimum every \p level function evaluations.
+     * - >=1: will print and log one line at minimum every \p level fitness evaluations.
      *
      * Example (verbosity 5000):
      * @code{.unparsed}
@@ -348,7 +362,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Simulated Annealing (Corana's)";
+        return "SA: Simulated Annealing (Corana's)";
     }
     /// Extra informations
     /**
@@ -392,7 +406,8 @@ public:
     template <typename Archive>
     void serialize(Archive &ar)
     {
-        ar(m_Ts, m_Tf, m_n_T_adj, m_n_range_adj, m_bin_size, m_start_range, m_e, m_seed, m_verbosity, m_log);
+        ar(cereal::base_class<not_population_based>(this), m_Ts, m_Tf, m_n_T_adj, m_n_range_adj, m_bin_size,
+           m_start_range, m_e, m_seed, m_verbosity, m_log);
     }
 
 private:
@@ -413,6 +428,11 @@ private:
     unsigned int m_seed;
     unsigned int m_verbosity;
     mutable log_type m_log;
+    // Deleting the methods load save public in base as to avoid conflict with serialize
+    template <typename Archive>
+    void load(Archive &ar) = delete;
+    template <typename Archive>
+    void save(Archive &ar) const = delete;
 };
 
 } // namespace pagmo

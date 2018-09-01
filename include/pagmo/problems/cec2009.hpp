@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -35,10 +35,16 @@ see https://www.gnu.org/licenses/. */
 #include <utility>
 #include <vector>
 
-#include "../detail/constants.hpp"
-#include "../exceptions.hpp"
-#include "../problem.hpp" // needed for cereal registration macro
-#include "../types.hpp"
+#include <pagmo/detail/constants.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/problem.hpp> // needed for cereal registration macro
+#include <pagmo/types.hpp>
+
+// Let's disable a few compiler warnings emitted by the cec2009 code.
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 
 namespace pagmo
 {
@@ -78,11 +84,22 @@ const std::vector<unsigned short> cec2009_statics<T>::m_nic = {1, 1, 1, 1, 1, 2,
  * on multi-objective optimization algorithms, commonly referred to by the literature
  * as UF1-UF10 (unconstrained) and CF1-CF10 (constrained).
  *
- * **NOTE**: The three problems constructed by some transformation on DTLZ2, DTLZ3
- * and WFG1 problems as described in the technical report are not included in
- * this implementation.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * @see http://www3.ntu.edu.sg/home/EPNSugan/index_files/CEC09-MOEA/CEC09-MOEA.htm
+ *    The three problems constructed by some transformation on DTLZ2, DTLZ3
+ *    and WFG1 problems as described in the technical report are not included in
+ *    this implementation.
+ *
+ * .. note::
+ *
+ *    All problems are continuous, multi objective problems.
+ *
+ * .. seealso:
+ *
+ *    http://www3.ntu.edu.sg/home/EPNSugan/index_files/CEC09-MOEA/CEC09-MOEA.htm
+ *
+ * \endverbatim
  *
  */
 
@@ -871,5 +888,9 @@ const std::vector<typename cec2009_statics<T>::func_ptr> cec2009_statics<T>::m_c
 } // namespace pagmo
 
 PAGMO_REGISTER_PROBLEM(pagmo::cec2009)
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif

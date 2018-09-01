@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -33,9 +33,13 @@ see https://www.gnu.org/licenses/. */
 #include <array>
 #include <boost/any.hpp>
 #include <boost/iterator/indirect_iterator.hpp>
+#include <cassert>
 #include <chrono>
+#include <cstddef>
+#include <exception>
 #include <functional>
 #include <future>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -44,10 +48,12 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <type_traits>
 #include <typeinfo>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <pagmo/algorithm.hpp>
+#include <pagmo/config.hpp>
 #include <pagmo/detail/make_unique.hpp>
 #include <pagmo/detail/task_queue.hpp>
 #include <pagmo/exceptions.hpp>
@@ -57,6 +63,23 @@ see https://www.gnu.org/licenses/. */
 #include <pagmo/serialization.hpp>
 #include <pagmo/threading.hpp>
 #include <pagmo/type_traits.hpp>
+
+#if defined(PAGMO_WITH_FORK_ISLAND)
+
+#include <atomic>
+#include <cerrno>
+#include <csignal>
+#include <cstdlib>
+#include <cstring>
+#include <ios>
+#include <ostream>
+#include <sstream>
+#include <tuple>
+
+#include <sys/types.h>
+#include <unistd.h>
+
+#endif
 
 /// Macro for the registration of the serialization functionality for user-defined islands.
 /**
@@ -120,7 +143,7 @@ namespace detail
 template <typename>
 struct disable_udi_checks : std::false_type {
 };
-}
+} // namespace detail
 
 /// Detect user-defined islands (UDI).
 /**
@@ -150,9 +173,7 @@ namespace detail
 {
 
 struct isl_inner_base {
-    virtual ~isl_inner_base()
-    {
-    }
+    virtual ~isl_inner_base() {}
     virtual std::unique_ptr<isl_inner_base> clone() const = 0;
     virtual void run_evolve(island &) const = 0;
     virtual std::string get_name() const = 0;
@@ -172,12 +193,8 @@ struct isl_inner final : isl_inner_base {
     isl_inner &operator=(const isl_inner &) = delete;
     isl_inner &operator=(isl_inner &&) = delete;
     // Constructors from T.
-    explicit isl_inner(const T &x) : m_value(x)
-    {
-    }
-    explicit isl_inner(T &&x) : m_value(std::move(x))
-    {
-    }
+    explicit isl_inner(const T &x) : m_value(x) {}
+    explicit isl_inner(T &&x) : m_value(std::move(x)) {}
     // The clone method, used in the copy constructor of island.
     virtual std::unique_ptr<isl_inner_base> clone() const override final
     {
@@ -225,12 +242,58 @@ struct isl_inner final : isl_inner_base {
     }
     T m_value;
 };
+
+// NOTE: this is just a simple wrapper to force noexcept behaviour on std::future::wait().
+// If f.wait() throws something, the program will terminate. A valid std::future should not
+// throw, but technically the standard does not guarantee that. Having this noexcept wrapper
+// simplifies reasoning about exception behaviour in wait(), wait_check(), etc.
+inline void wait_f(const std::future<void> &f) noexcept
+{
+    assert(f.valid());
+    f.wait();
 }
+
+// Small helper to determine if a future holds an exception.
+// The noexcept reasoning is the same as above. Here we could fail
+// because of memory errors, but there's not much we can do in such
+// a case.
+inline bool future_has_exception(std::future<void> &f) noexcept
+{
+    assert(f.valid());
+    // Try to get the error.
+    try {
+        f.get();
+    } catch (...) {
+        // An error was generated. Re-store the exception into the future
+        // and return true.
+        // http://en.cppreference.com/w/cpp/experimental/make_exceptional_future
+        std::promise<void> p;
+        p.set_exception(std::current_exception());
+        f = p.get_future();
+        return true;
+    }
+    // No error was raised. Need to reconstruct f to a valid state.
+    std::promise<void> p;
+    p.set_value();
+    f = p.get_future();
+    return false;
+}
+
+// Small helper to check if a future is still running.
+inline bool future_running(const std::future<void> &f)
+{
+    return f.wait_for(std::chrono::duration<int>::zero()) != std::future_status::ready;
+}
+} // namespace detail
 
 /// Thread island.
 /**
  * This class is a user-defined island (UDI) that will run evolutions directly inside
  * the separate thread of execution within pagmo::island.
+ *
+ * thread_island is the UDI type automatically selected by the constructors of pagmo::island
+ * on non-POSIX platforms or when both the island's problem and algorithm provide at least the
+ * pagmo::thread_safety::basic thread safety guarantee.
  */
 class thread_island
 {
@@ -254,15 +317,162 @@ public:
     }
 };
 
+#if defined(PAGMO_WITH_FORK_ISLAND)
+
+// Fork island: will offload the evolution to a child process created with the fork() system call.
+class fork_island
+{
+    // Small RAII wrapper around a pipe.
+    struct pipe_t {
+        // Def ctor: will create the pipe.
+        pipe_t() : r_status(true), w_status(true)
+        {
+            int fd[2];
+            // LCOV_EXCL_START
+            if (pipe(fd) == -1) {
+                pagmo_throw(std::runtime_error, "Unable to create a pipe with the pipe() function. The error code is "
+                                                    + std::to_string(errno) + " and the error message is: '"
+                                                    + std::strerror(errno) + "'");
+            }
+            // LCOV_EXCL_STOP
+            // The pipe was successfully opened, copy over
+            // the r/w descriptors.
+            rd = fd[0];
+            wd = fd[1];
+        }
+        // Try to close the reading end if it has not been closed already.
+        void close_r()
+        {
+            if (r_status) {
+                // LCOV_EXCL_START
+                if (close(rd) == -1) {
+                    pagmo_throw(
+                        std::runtime_error,
+                        "Unable to close the reading end of a pipe with the close() function. The error code is "
+                            + std::to_string(errno) + " and the error message is: '" + std::strerror(errno) + "'");
+                }
+                // LCOV_EXCL_STOP
+                r_status = false;
+            }
+        }
+        // Try to close the writing end if it has not been closed already.
+        void close_w()
+        {
+            if (w_status) {
+                // LCOV_EXCL_START
+                if (close(wd) == -1) {
+                    pagmo_throw(
+                        std::runtime_error,
+                        "Unable to close the writing end of a pipe with the close() function. The error code is "
+                            + std::to_string(errno) + " and the error message is: '" + std::strerror(errno) + "'");
+                }
+                // LCOV_EXCL_STOP
+                w_status = false;
+            }
+        }
+        ~pipe_t()
+        {
+            // Attempt to close the pipe on destruction.
+            try {
+                close_r();
+                close_w();
+                // LCOV_EXCL_START
+            } catch (const std::runtime_error &re) {
+                // We are in a dtor, the error is not recoverable.
+                std::cerr << "An unrecoverable error was raised while trying to close a pipe in the pipe's destructor. "
+                             "The full error message is:\n"
+                          << re.what() << "\n\nExiting now." << std::endl;
+                std::exit(1);
+            }
+            // LCOV_EXCL_STOP
+        }
+        // Wrapper around the read() function.
+        ssize_t read(void *buf, std::size_t count) const
+        {
+            auto retval = ::read(rd, buf, count);
+            // LCOV_EXCL_START
+            if (retval == -1) {
+                pagmo_throw(std::runtime_error,
+                            "Unable to read from a pipe with the read() function. The error code is "
+                                + std::to_string(errno) + " and the error message is: '" + std::strerror(errno) + "'");
+            }
+            // LCOV_EXCL_STOP
+            return retval;
+        }
+        // Wrapper around the write() function.
+        ssize_t write(const void *buf, std::size_t count) const
+        {
+            auto retval = ::write(wd, buf, count);
+            // LCOV_EXCL_START
+            if (retval == -1) {
+                pagmo_throw(std::runtime_error,
+                            "Unable to write to a pipe with the write() function. The error code is "
+                                + std::to_string(errno) + " and the error message is: '" + std::strerror(errno) + "'");
+            }
+            // LCOV_EXCL_STOP
+            return retval;
+        }
+        // The file descriptors of the two ends of the pipe.
+        int rd, wd;
+        // Flag to signal the status of the two ends
+        // of the pipe: true for open, false for closed.
+        bool r_status, w_status;
+    };
+    // The structure we use to pass messages from the child to the parent:
+    // - int, status flag,
+    // - string, error message,
+    // - the algorithm used for evolution,
+    // - the evolved population.
+    using message_t = std::tuple<int, std::string, algorithm, population>;
+
+public:
+    // NOTE: we need to implement these because of the m_pid member,
+    // which has a trivial def ctor and which is missing the copy/move ctors.
+    // m_pid is only informational and it is relevant only while the evolution
+    // is undergoing, we will not copy it or serialize it.
+    fork_island() : m_pid(0) {}
+    fork_island(const fork_island &) : fork_island() {}
+    fork_island(fork_island &&) : fork_island() {}
+    void run_evolve(island &) const;
+    std::string get_name() const
+    {
+        return "Fork island";
+    }
+    // Extra info: report the child process' ID, if evolution
+    // is active.
+    std::string get_extra_info() const
+    {
+        const auto pid = m_pid.load();
+        if (pid) {
+            return "\tChild PID: " + std::to_string(pid);
+        }
+        return "\tNo active child.";
+    }
+    // Get the PID of the child.
+    pid_t get_child_pid() const
+    {
+        return m_pid.load();
+    }
+    template <typename Archive>
+    void serialize(Archive &)
+    {
+    }
+
+private:
+    mutable std::atomic<pid_t> m_pid;
+};
+
+#endif
+
 class archipelago;
 
 namespace detail
 {
 // NOTE: this construct is used to create a RAII-style object at the beginning
-// of island::wait()/island::get(). Normally this object's constructor and destructor will not
+// of island::wait()/island::wait_check(). Normally this object's constructor and destructor will not
 // do anything, but in Python we need to override this getter so that it returns
 // a RAII object that unlocks the GIL, otherwise we could run into deadlocks in Python
-// if isl::wait()/isl::get() holds the GIL while waiting.
+// if isl::wait()/isl::wait_check() holds the GIL while waiting.
 template <typename = void>
 struct wait_raii {
     static std::function<boost::any()> getter;
@@ -284,9 +494,21 @@ struct island_factory {
     static func_t s_func;
 };
 
-// This is the default UDI type selector. It will always select thread_island as UDI.
-inline void default_island_factory(const algorithm &, const population &, std::unique_ptr<detail::isl_inner_base> &ptr)
+// This is the default UDI type selector. It will select the thread_island if both algorithm
+// and population provide at least the basic thread safety guarantee. Otherwise, it will select
+// the fork_island, if available.
+inline void default_island_factory(const algorithm &algo, const population &pop,
+                                   std::unique_ptr<detail::isl_inner_base> &ptr)
 {
+    (void)algo;
+    (void)pop;
+#if defined(PAGMO_WITH_FORK_ISLAND)
+    if (static_cast<int>(algo.get_thread_safety()) < static_cast<int>(thread_safety::basic)
+        || static_cast<int>(pop.get_problem().get_thread_safety()) < static_cast<int>(thread_safety::basic)) {
+        ptr = make_unique<isl_inner<fork_island>>();
+        return;
+    }
+#endif
     ptr = make_unique<isl_inner<thread_island>>();
 }
 
@@ -337,13 +559,13 @@ struct island_data {
     island_data &operator=(island_data &&) = delete;
     // The data members.
     // NOTE: isl_ptr has no associated mutex, as it's supposed to be fully
-    // threads-safe on its own.
+    // thread-safe on its own.
     std::unique_ptr<isl_inner_base> isl_ptr;
     // Algo and pop need a mutex to regulate concurrent access
     // while the island is evolving.
-    std::mutex algo_mutex;
     // NOTE: see the explanation in island::get_algorithm() about why
     // we store algo/pop as shared_ptrs.
+    std::mutex algo_mutex;
     std::shared_ptr<algorithm> algo;
     std::mutex pop_mutex;
     std::shared_ptr<population> pop;
@@ -353,25 +575,90 @@ struct island_data {
     archipelago *archi_ptr = nullptr;
     task_queue queue;
 };
+} // namespace detail
+
+/// Evolution status.
+/**
+ * This enumeration contains status flags used to represent the current
+ * status of asynchronous evolution/optimisation in pagmo::island and pagmo::archipelago.
+ *
+ * \verbatim embed:rst:leading-asterisk
+ * .. seealso::
+ *
+ *    :cpp:func:`pagmo::island::status()` and :cpp:func:`pagmo::archipelago::status()`.
+ *
+ * \endverbatim
+ */
+enum class evolve_status {
+    idle = 0,       ///< No asynchronous operations are ongoing, and no error was generated
+                    /// by an asynchronous operation in the past
+    busy = 1,       ///< Asynchronous operations are ongoing, and no error was generated
+                    /// by an asynchronous operation in the past
+    idle_error = 2, ///< Idle with error: no asynchronous operations are ongoing, but an error
+                    /// was generated by an asynchronous operation in the past
+    busy_error = 3  ///< Busy with error: asynchronous operations are ongoing, and an error
+                    /// was generated by an asynchronous operation in the past
+};
+
+namespace detail
+{
+
+template <typename = void>
+struct island_static_data {
+    // A map to link a human-readable description to evolve_status.
+    // NOTE: in C++11 hashing of enums might not be available. Provide our own.
+    struct status_hasher {
+        std::size_t operator()(evolve_status es) const noexcept
+        {
+            return std::hash<int>{}(static_cast<int>(es));
+        }
+    };
+    using status_map_t = std::unordered_map<evolve_status, std::string, status_hasher>;
+    static const status_map_t statuses;
+};
+
+template <typename T>
+const typename island_static_data<T>::status_map_t island_static_data<T>::statuses
+    = {{evolve_status::idle, "idle"},
+       {evolve_status::busy, "busy"},
+       {evolve_status::idle_error, "idle - **error occurred**"},
+       {evolve_status::busy_error, "busy - **error occurred**"}};
+} // namespace detail
+
+#if !defined(PAGMO_DOXYGEN_INVOKED)
+
+// Provide the stream operator overload for evolve_status.
+inline std::ostream &operator<<(std::ostream &os, evolve_status es)
+{
+    return os << detail::island_static_data<>::statuses.at(es);
 }
+
+#endif
 
 /// Island class.
 /**
  * \image html island_no_text.png
  *
+ * \verbatim embed:rst:leading-asterisk
+ *
  * In the pagmo jargon, an island is a class that encapsulates three entities:
+ *
  * - a user-defined island (UDI),
- * - a pagmo::algorithm,
- * - a pagmo::population.
+ * - an :cpp:class:`~pagmo::algorithm`,
+ * - a :cpp:class:`~pagmo::population`.
  *
  * Through the UDI, the island class manages the asynchronous evolution (or optimisation)
- * of its pagmo::population via the algorithm's algorithm::evolve() method. Depending
- * on the UDI, the evolution might take place in a separate thread (e.g., if the UDI is a
- * pagmo::thread_island), in a separate process or even in a separate machine. The evolution
+ * of its :cpp:class:`~pagmo::population` via the algorithm's :cpp:func:`~pagmo::algorithm::evolve()`
+ * method. Depending on the UDI, the evolution might take place in a separate thread (e.g., if the UDI is a
+ * :cpp:class:`~pagmo::thread_island`), in a separate process (see :cpp:class:`~pagmo::fork_island`) or even
+ * in a separate machine. The evolution
  * is always asynchronous (i.e., running in the "background") and it is initiated by a call
- * to the island::evolve() method. At any time the user can query the state of the island
+ * to the :cpp:func:`~pagmo::island::evolve()` method. At any time the user can query the state of the island
  * and fetch its internal data members. The user can explicitly wait for pending evolutions
- * to conclude by calling the island::wait() and island::get() methods.
+ * to conclude by calling the :cpp:func:`~pagmo::island::wait()` and :cpp:func:`~pagmo::island::wait_check()`
+ * methods. The status of ongoing evolutions in the island can be queried via :cpp:func:`~pagmo::island::status()`.
+ *
+ * \endverbatim
  *
  * Typically, pagmo users will employ an already-available UDI (such as pagmo::thread_island) in
  * conjunction with this class, but advanced users can implement their own UDI types. A user-defined
@@ -382,11 +669,8 @@ struct island_data {
  *
  * The <tt>run_evolve()</tt> method of
  * the UDI will use the input island algorithm's algorithm::evolve() method to evolve the input island's
- * pagmo::population and, once the evolution is finished, will replace the population of the input island with the
- * evolved population. Since internally the pagmo::island class uses a separate thread of execution to provide
- * asynchronous behaviour, a UDI needs to guarantee a certain degree of thread-safety: it must be possible to interact
- * with the UDI while evolution is ongoing (e.g., it must be possible to copy the UDI while evolution is undergoing, or
- * call the <tt>%get_name()</tt>, <tt>%get_extra_info()</tt> methods, etc.), otherwise the behaviour will be undefined.
+ * pagmo::population. Once the evolution is finished, <tt>run_evolve()</tt> will then replace the population and the
+ * algorithm of the input island with, respectively, the evolved population and the algorithm used for the evolution.
  *
  * In addition to the mandatory <tt>run_evolve()</tt> method, a UDI may implement the following optional methods:
  * @code{.unparsed}
@@ -397,8 +681,22 @@ struct island_data {
  * See the documentation of the corresponding methods in this class for details on how the optional
  * methods in the UDI are used by pagmo::island.
  *
- * **NOTE**: a moved-from pagmo::island is destructible and assignable. Any other operation will result
- * in undefined behaviour.
+ * Note that, due to the asynchronous nature of pagmo::island, a UDI has certain requirements regarding thread safety.
+ * Specifically, ``run_evolve()`` is always called in a separate thread of execution, and consequently:
+ * - multiple UDI objects may be calling their own ``run_evolve()`` method concurrently,
+ * - in a specific UDI object, any method from the public API of the UDI may be called while ``run_evolve()`` is
+ *   running concurrently in another thread (the only exception being the destructor, which will wait for the end
+ *   of any ongoing evolution before taking any action). Thus, UDI writers must ensure that actions such as copying
+ *   the UDI, calling the optional methods (such as ``%get_name()``), etc. can be safely performed while the island
+ *   is evolving.
+ *
+ * \verbatim embed:rst:leading-asterisk
+ * .. warning::
+ *
+ *    A moved-from :cpp:class:`pagmo::island` is destructible and assignable. Any other operation will result
+ *    in undefined behaviour.
+ *
+ * \endverbatim
  */
 class island
 {
@@ -406,6 +704,18 @@ class island
     using idata_t = detail::island_data;
     // archi needs access to the internal of island.
     friend class archipelago;
+    // NOTE: the idea in the move members and the dtor is that
+    // we want to wait *and* erase any future in the island, before doing
+    // the move/destruction. Thus we use this small wrapper.
+    void wait_check_ignore()
+    {
+        try {
+            wait_check();
+            // LCOV_EXCL_START
+        } catch (...) {
+        }
+        // LCOV_EXCL_STOP
+    }
 
 public:
     /// Default constructor.
@@ -415,9 +725,7 @@ public:
      *
      * @throws unspecified any exception thrown by any invoked constructor or by memory allocation failures.
      */
-    island() : m_ptr(detail::make_unique<idata_t>())
-    {
-    }
+    island() : m_ptr(detail::make_unique<idata_t>()) {}
     /// Copy constructor.
     /**
      * The copy constructor will initialise an island containing a copy of <tt>other</tt>'s UDI, population
@@ -446,24 +754,38 @@ public:
      */
     island(island &&other) noexcept
     {
-        other.wait();
+        other.wait_check_ignore();
         m_ptr = std::move(other.m_ptr);
     }
 
 private:
     template <typename Algo, typename Pop>
-    using algo_pop_enabler = enable_if_t<std::is_constructible<algorithm, Algo &&>::value
-                                             && std::is_same<population, uncvref_t<Pop>>::value,
-                                         int>;
+    using algo_pop_enabler = enable_if_t<
+        std::is_constructible<algorithm, Algo &&>::value && std::is_same<population, uncvref_t<Pop>>::value, int>;
 
 public:
     /// Constructor from algorithm and population.
     /**
-     * **NOTE**: this constructor is enabled only if \p a can be used to construct a
-     * pagmo::algorithm and \p p is an instance of pagmo::population.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
      *
-     * This constructor will use \p a to construct the internal algorithm, and \p p to construct
-     * the internal population. A default-constructed pagmo::thread_island will be the internal UDI.
+     *    This constructor is enabled only if ``a`` can be used to construct a
+     *    :cpp:class:`pagmo::algorithm` and :cpp:class:`p` is an instance of :cpp:class:`pagmo::population`.
+     *
+     * This constructor will use *a* to construct the internal algorithm, and *p* to construct
+     * the internal population. The UDI type will be inferred from the :cpp:type:`~pagmo::thread_safety` properties
+     * of the algorithm and the population's problem. Specifically:
+     *
+     * - if both the algorithm and the problem provide at least the basic :cpp:type:`~pagmo::thread_safety`
+     *   guarantee, or if the current platform is *not* POSIX, then the UDI type will be
+     *   :cpp:class:`~pagmo::thread_island`;
+     * - otherwise, the UDI type will be :cpp:class:`~pagmo::fork_island`.
+     *
+     * Note that on non-POSIX platforms, :cpp:class:`~pagmo::thread_island` will always be selected as the UDI type,
+     * but island evolutions will fail if the algorithm and/or problem do not provide at least the
+     * basic :cpp:type:`~pagmo::thread_safety` guarantee.
+     *
+     * \endverbatim
      *
      * @param a the input algorithm.
      * @param p the input population.
@@ -488,10 +810,16 @@ private:
 public:
     /// Constructor from UDI, algorithm and population.
     /**
-     * **NOTE**: this constructor is enabled only if:
-     * - \p Isl satisfies pagmo::is_udi,
-     * - \p a can be used to construct a pagmo::algorithm,
-     * - \p p is an instance of pagmo::population.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if:
+     *
+     *    - ``Isl`` satisfies :cpp:class:`pagmo::is_udi`,
+     *    - ``a`` can be used to construct a :cpp:class:`pagmo::algorithm`,
+     *    - ``p`` is an instance of :cpp:class:`pagmo::population`.
+     *
+     * \endverbatim
      *
      * This constructor will use \p isl to construct the internal UDI, \p a to construct the internal algorithm,
      * and \p p to construct the internal population.
@@ -520,8 +848,14 @@ private:
 public:
     /// Constructor from algorithm, problem, size and seed.
     /**
-     * **NOTE**: this constructor is enabled only if \p a can be used to construct a
-     * pagmo::algorithm, and \p p, \p size and \p seed can be used to construct a pagmo::population.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if ``a`` can be used to construct a
+     *    :cpp:class:`pagmo::algorithm`, and ``p``, ``size`` and ``seed`` can be used to construct a
+     *    :cpp:class:`pagmo::population`.
+     *
+     * \endverbatim
      *
      * This constructor will construct a pagmo::population \p pop from \p p, \p size and \p seed, and it will
      * then invoke island(Algo &&, Pop &&) with \p a and \p pop as arguments.
@@ -550,8 +884,14 @@ private:
 public:
     /// Constructor from UDI, algorithm, problem, size and seed.
     /**
-     * **NOTE**: this constructor is enabled only if \p Isl satisfies pagmo::is_udi, \p a can be used to construct a
-     * pagmo::algorithm, and \p p, \p size and \p seed can be used to construct a pagmo::population.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if ``Isl`` satisfies :cpp:class:`pagmo::is_udi`, ``a`` can be used to
+     *    construct a :cpp:class:`pagmo::algorithm`, and ``p``, ``size`` and ``seed`` can be used to construct a
+     *    :cpp:class:`pagmo::population`.
+     *
+     * \endverbatim
      *
      * This constructor will construct a pagmo::population \p pop from \p p, \p size and \p seed, and it will
      * then invoke island(Isl &&, Algo &&, Pop &&) with \p isl, \p a and \p pop as arguments.
@@ -575,13 +915,14 @@ public:
     }
     /// Destructor.
     /**
-     * If the island has not been moved-from, the destructor will call island::wait().
+     * If the island has not been moved-from, the destructor will call island::wait_check(),
+     * ignoring any exception that might be thrown.
      */
     ~island()
     {
         // If the island has been moved from, don't do anything.
         if (m_ptr) {
-            wait();
+            wait_check_ignore();
         }
     }
     /// Move assignment.
@@ -597,9 +938,9 @@ public:
     {
         if (this != &other) {
             if (m_ptr) {
-                wait();
+                wait_check_ignore();
             }
-            other.wait();
+            other.wait_check_ignore();
             m_ptr = std::move(other.m_ptr);
         }
         return *this;
@@ -621,6 +962,68 @@ public:
         }
         return *this;
     }
+    /// Extract a const pointer to the UDI used for construction.
+    /**
+     * This method will extract a const pointer to the internal instance of the UDI. If \p T is not the same type
+     * as the UDI used during construction (after removal of cv and reference qualifiers), this method will
+     * return \p nullptr.
+     *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The returned value is a raw non-owning pointer: the lifetime of the pointee is tied to the lifetime
+     *    of ``this``, and ``delete`` must never be called on the pointer.
+     *
+     * \endverbatim
+     *
+     * @return a const pointer to the internal UDI, or \p nullptr
+     * if \p T does not correspond exactly to the original UDI type used
+     * in the constructor.
+     */
+    template <typename T>
+    const T *extract() const
+    {
+        auto isl = dynamic_cast<const detail::isl_inner<T> *>(m_ptr->isl_ptr.get());
+        return isl == nullptr ? nullptr : &(isl->m_value);
+    }
+    /// Extract a pointer to the UDI used for construction.
+    /**
+     * This method will extract a pointer to the internal instance of the UDI. If \p T is not the same type
+     * as the UDI used during construction (after removal of cv and reference qualifiers), this method will
+     * return \p nullptr.
+     *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The returned value is a raw non-owning pointer: the lifetime of the pointee is tied to the lifetime
+     *    of ``this``, and ``delete`` must never be called on the pointer.
+     *
+     * .. note::
+     *
+     *    The ability to extract a mutable pointer is provided only in order to allow to call non-const
+     *    methods on the internal UDI instance. Assigning a new UDI via this pointer is undefined behaviour.
+     *
+     * \endverbatim
+     *
+     * @return a pointer to the internal UDI, or \p nullptr
+     * if \p T does not correspond exactly to the original UDI type used
+     * in the constructor.
+     */
+    template <typename T>
+    T *extract()
+    {
+        auto isl = dynamic_cast<detail::isl_inner<T> *>(m_ptr->isl_ptr.get());
+        return isl == nullptr ? nullptr : &(isl->m_value);
+    }
+    /// Check if the UDI used for construction is of type \p T.
+    /**
+     * @return \p true if the UDI used in construction is of type \p T, \p false otherwise.
+     */
+    template <typename T>
+    bool is() const
+    {
+        return extract<T>() != nullptr;
+    }
     /// Launch evolution.
     /**
      * This method will evolve the island's pagmo::population using the
@@ -633,11 +1036,12 @@ public:
      * method of the UDI \p n times consecutively to perform the actual evolution.
      * The island's population will be updated at the end of each <tt>run_evolve()</tt>
      * invocation. Exceptions raised inside the
-     * tasks are stored within the island object, and can be re-raised by calling get().
+     * tasks are stored within the island object, and can be re-raised by calling wait_check().
      *
      * It is possible to call this method multiple times to enqueue multiple evolution tasks, which
-     * will be consumed in a FIFO (first-in first-out) fashion. The user may call island::wait() or island::get()
+     * will be consumed in a FIFO (first-in first-out) fashion. The user may call island::wait() or island::wait_check()
      * to block until all tasks have been completed, and to fetch exceptions raised during the execution of the tasks.
+     * island::status() can be used to query the status of the asynchronous operations in the island.
      *
      * @param n the number of times the <tt>run_evolve()</tt> method of the UDI will be called
      * within the evolution task.
@@ -662,37 +1066,43 @@ public:
                     this->m_ptr->isl_ptr->run_evolve(*this);
                 }
             });
+            // LCOV_EXCL_START
         } catch (...) {
             // We end up here only if enqueue threw. In such a case, we need to cleanup
             // the empty future we added above before re-throwing and exiting.
             m_ptr->futures.pop_back();
             throw;
+            // LCOV_EXCL_STOP
         }
     }
     /// Block until evolution ends and re-raise the first stored exception.
     /**
      * This method will block until all the evolution tasks enqueued via island::evolve() have been completed.
-     * The method will then raise the first exception raised by any task enqueued since the last time wait()
-     * or get() were called.
+     * If one task enqueued after the last call to wait_check() threw an exception, the exception will be re-thrown
+     * by this method. If more than one task enqueued after the last call to wait_check() threw an exception,
+     * this method will re-throw the exception raised by the first enqueued task that threw, and the exceptions
+     * from all the other tasks that threw will be ignored.
+     *
+     * Note that wait_check() resets the status of the island: after a call to wait_check(), status() will always
+     * return evolve_status::idle.
      *
      * @throws unspecified any exception thrown by evolution tasks.
      */
-    void get()
+    void wait_check()
     {
         auto iwr = detail::wait_raii<>::getter();
         (void)iwr;
-        for (decltype(m_ptr->futures.size()) i = 0; i < m_ptr->futures.size(); ++i) {
-            // NOTE: this has to be valid, as the only way to get the value of the futures is via
-            // this method, and we clear the futures vector after we are done.
-            assert(m_ptr->futures[i].valid());
+        for (auto it = m_ptr->futures.begin(); it != m_ptr->futures.end(); ++it) {
+            assert(it->valid());
             try {
-                m_ptr->futures[i].get();
+                it->get();
             } catch (...) {
                 // If any of the futures stores an exception, we will re-raise it.
                 // But first, we need to get all the other futures and erase the futures
                 // vector.
-                for (i = i + 1u; i < m_ptr->futures.size(); ++i) {
-                    m_ptr->futures[i].wait();
+                // NOTE: everything is this block is noexcept.
+                for (it = it + 1; it != m_ptr->futures.end(); ++it) {
+                    detail::wait_f(*it);
                 }
                 m_ptr->futures.clear();
                 throw;
@@ -703,31 +1113,86 @@ public:
     /// Block until evolution ends.
     /**
      * This method will block until all the evolution tasks enqueued via island::evolve() have been completed.
+     * Exceptions thrown by the enqueued tasks can be re-raised via wait_check(): they will **not** be re-thrown
+     * by this method. Also, contrary to wait_check(), this method will **not** reset the status of the island:
+     * after a call to wait(), status() will always return either evolve_status::idle or evolve_status::idle_error.
      */
-    void wait() noexcept
+    void wait()
     {
-        // NOTE: we mark this as noexcept as it is used in move ops and in the dtor. In theory we could
-        // end up aborting in case the wait_raii mechanism throws.
+        // NOTE: we use this function in move ops and in the dtor, which are all noexcept. In theory we could
+        // end up aborting in case the wait_raii mechanism throws in such cases. We could also end up aborting
+        // due to memory failures in future_has_exception().
+        // NOTE: the idea here is that, after a wait() call, all the futures of successful tasks have been erased,
+        // with at most 1 surviving future from the first throwing task. This way, wait() does some cleaning up
+        // behind the scenes, without changing the behaviour of successive wait_check() and status() calls: wait_check()
+        // will still re-throw the first exception, and status() will still return idle_error.
         auto iwr = detail::wait_raii<>::getter();
         (void)iwr;
-        for (const auto &f : m_ptr->futures) {
-            // NOTE: this has to be valid, as the only way to get the value of the futures is via
-            // this method, and we clear the futures vector after we are done.
-            assert(f.valid());
-            f.wait();
+        const auto it_f = m_ptr->futures.end();
+        auto it_first_exc = it_f;
+        for (auto it = m_ptr->futures.begin(); it != it_f; ++it) {
+            // Wait on the task.
+            detail::wait_f(*it);
+            if (it_first_exc == it_f && detail::future_has_exception(*it)) {
+                // Store an iterator to the throwing future.
+                it_first_exc = it;
+            }
         }
-        // NOTE: we clear the futures for symmetry with the get() behaviour.
-        m_ptr->futures.clear();
+        if (it_first_exc == it_f) {
+            // No exceptions were raised, just clear everything.
+            m_ptr->futures.clear();
+        } else {
+            // We had a throwing future: preserve it and erase all the other futures.
+            auto tmp_f(std::move(*it_first_exc));
+            m_ptr->futures.clear();
+            m_ptr->futures.emplace_back(std::move(tmp_f));
+        }
     }
-    /// Check island status.
+    /// Status of the island.
     /**
-     * @return \p true if the island is evolving, \p false otherwise.
+     * This method will return a pagmo::evolve_status flag indicating the current status of
+     * asynchronous operations in the island. The flag will be:
+     *
+     * * evolve_status::idle if the island is currently not evolving and no exceptions
+     *   were thrown by evolution tasks since the last call to wait_check();
+     * * evolve_status::busy if the island is evolving and no exceptions
+     *   have (yet) been thrown by evolution tasks since the last call to wait_check();
+     * * evolve_status::idle_error if the island is currently not evolving and at least one
+     *   evolution task threw an exception since the last call to wait_check();
+     * * evolve_status::busy_error if the island is currently evolving and at least one
+     *   evolution task has already thrown an exception since the last call to wait_check().
+     *
+     * Note that after a call to wait_check(), status() will always return evolve_status::idle,
+     * and after a call to wait(), status() will always return either evolve_status::idle or
+     * evolve_status::idle_error.
+     *
+     * @return a flag indicating the current status of asynchronous operations in the island.
      */
-    bool busy() const
+    evolve_status status() const
     {
-        return std::any_of(m_ptr->futures.begin(), m_ptr->futures.end(), [](const std::future<void> &f) {
-            return f.wait_for(std::chrono::duration<int>::zero()) != std::future_status::ready;
-        });
+        // Error flag. It will be set to true if at least one completed task raised an exception.
+        bool error = false;
+        // Iterate over all current evolve() tasks.
+        for (auto &f : m_ptr->futures) {
+            if (detail::future_running(f)) {
+                // We have at least one busy task. The return status will be either "busy"
+                // or "busy_error", depending on whether at least one completed task raised an
+                // exception.
+                if (error) {
+                    return evolve_status::busy_error;
+                }
+                return evolve_status::busy;
+            }
+            // The current task is not running. Check if it generated an error.
+            // NOTE: the '||' is because this flag, once set to true, needs to stay true.
+            error = error || detail::future_has_exception(f);
+        }
+        if (error) {
+            // All tasks have finished and at least one generated an error.
+            return evolve_status::idle_error;
+        }
+        // All tasks have finished, no errors generated.
+        return evolve_status::idle;
     }
     /// Get the algorithm.
     /**
@@ -872,13 +1337,16 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const island &isl)
     {
         stream(os, "Island name: ", isl.get_name());
-        stream(os, "\n\tEvolving: ", isl.busy(), "\n\n");
+        stream(os, "\n\tStatus: ", isl.status(), "\n\n");
         const auto extra_str = isl.get_extra_info();
         if (!extra_str.empty()) {
             stream(os, "Extra info:\n", extra_str, "\n\n");
         }
-        stream(os, isl.get_algorithm(), "\n\n");
-        stream(os, isl.get_population(), "\n\n");
+        stream(os, "Algorithm: " + isl.get_algorithm().get_name(), "\n\n");
+        stream(os, "Problem: " + isl.get_population().get_problem().get_name(), "\n\n");
+        stream(os, "Population size: ", isl.get_population().size(), "\n");
+        stream(os, "\tChampion decision vector: ", isl.get_population().champion_x(), "\n");
+        stream(os, "\tChampion fitness: ", isl.get_population().champion_f(), "\n");
         return os;
     }
     /// Save to archive.
@@ -930,14 +1398,17 @@ private:
  * This method will use copies of <tt>isl</tt>'s
  * algorithm and population, obtained via island::get_algorithm() and island::get_population(),
  * to evolve the input island's population. The evolved population will be assigned to \p isl
- * using island::set_population().
+ * using island::set_population(), and the algorithm used for the evolution will be assigned
+ * to \p isl using island::set_algorithm().
  *
  * @param isl the pagmo::island that will undergo evolution.
  *
  * @throws std::invalid_argument if <tt>isl</tt>'s algorithm or problem do not provide
  * at least the pagmo::thread_safety::basic thread safety guarantee.
- * @throws unspecified any exception thrown by island::get_algorithm(), island::get_population(),
- * island::set_population().
+ * @throws unspecified any exception thrown by:
+ * - island::get_algorithm(), island::get_population(),
+ * - island::set_algorithm(), island::set_population(),
+ * - algorithm::evolve().
  */
 inline void thread_island::run_evolve(island &isl) const
 {
@@ -951,8 +1422,199 @@ inline void thread_island::run_evolve(island &isl) const
         pagmo_throw(std::invalid_argument, "the 'thread_island' UDI requires a problem providing at least the 'basic' "
                                            "thread safety guarantee");
     }
-    isl.set_population(isl.get_algorithm().evolve(isl.get_population()));
+    // Get out a copy of the algorithm for evolution.
+    auto algo = isl.get_algorithm();
+    // Replace the island's population with the evolved population.
+    isl.set_population(algo.evolve(isl.get_population()));
+    // Replace the island's algorithm with the algorithm used for the evolution.
+    // NOTE: if set_algorithm() fails, we will have the new population with the
+    // original algorithm, which is still a valid state for the island.
+    isl.set_algorithm(std::move(algo));
 }
+
+#if defined(PAGMO_WITH_FORK_ISLAND)
+
+inline void fork_island::run_evolve(island &isl) const
+{
+    // A message that will be used both by parent and child.
+    message_t m;
+    // The pipe.
+    pipe_t p;
+    // Try to fork now.
+    auto child_pid = fork();
+    // LCOV_EXCL_START
+    if (child_pid == -1) {
+        // Forking failed.
+        pagmo_throw(std::runtime_error,
+                    "Cannot fork the process in a fork_island with the fork() function. The error code is "
+                        + std::to_string(errno) + " and the error message is: '" + std::strerror(errno) + "'");
+    }
+    // LCOV_EXCL_STOP
+    if (child_pid) {
+        // We are in the parent.
+        // Small raii helper to ensure that the pid of the child is atomically
+        // set on construction, and reset to zero by the dtor.
+        struct pid_setter {
+            explicit pid_setter(std::atomic<pid_t> &ap, pid_t pid) : m_ap(ap)
+            {
+                m_ap.store(pid);
+            }
+            ~pid_setter()
+            {
+                m_ap.store(0);
+            }
+            std::atomic<pid_t> &m_ap;
+        };
+        pid_setter ps(m_pid, child_pid);
+        try {
+            // Close the write descriptor, we don't need to send anything to the child.
+            p.close_w();
+            // Prepare a local buffer and a stringstream, then read the data from the child.
+            // NOTE: make the buffer small enough that its size can be represented by any
+            // integral type.
+            char buffer[100];
+            std::stringstream ss;
+            {
+                cereal::BinaryInputArchive iarchive(ss);
+                while (true) {
+                    const auto read_bytes = p.read(static_cast<void *>(buffer), sizeof(buffer));
+                    if (!read_bytes) {
+                        // EOF, break out.
+                        break;
+                    }
+                    ss.write(buffer, static_cast<std::streamsize>(read_bytes));
+                }
+                iarchive(m);
+            }
+            // Close the read descriptor.
+            p.close_r();
+        } catch (...) {
+            // Something failed above. As a cleanup action, try to kill the child
+            // before re-raising the error.
+            if (kill(child_pid, SIGTERM) == -1 && errno != ESRCH) {
+                // LCOV_EXCL_START
+                // The signal delivery to the child failed, and not because
+                // the child does not exist any more (if the child did not exist,
+                // errno would be ESRCH).
+                std::cerr << "An unrecoverable error was raised while handling another error in the parent process "
+                             "of a fork_island. Giving up now."
+                          << std::endl;
+                std::exit(1);
+                // LCOV_EXCL_STOP
+            }
+            // Re-raise.
+            throw;
+        }
+        // At this point, we have received the data from the child, and we can insert
+        // it into isl, or raise an error.
+        if (std::get<0>(m)) {
+            pagmo_throw(std::runtime_error, "The run_evolve() method of fork_island raised an error in the "
+                                            "child process. The full error message reported by the child is:\n"
+                                                + std::get<1>(m));
+        }
+        isl.set_algorithm(std::move(std::get<2>(m)));
+        isl.set_population(std::move(std::get<3>(m)));
+    } else {
+        // NOTE: we won't get any coverage data from the child process, so just disable
+        // lcov for this whole block.
+        //
+        // LCOV_EXCL_START
+        //
+        // We are in the child.
+        //
+        // Small helpers to serialize a message and send the contents of a string
+        // stream back to the parent. This is split in 2 separate functions
+        // because we can handle errors in serialize_message(), but not in send_ss().
+        auto serialize_message = [](std::stringstream &ss, const message_t &ms) {
+            cereal::BinaryOutputArchive oarchive(ss);
+            oarchive(ms);
+        };
+        auto send_ss = [&p](std::stringstream &ss) {
+            // NOTE: make the buffer small enough that its size can be represented by any
+            // integral type.
+            char buffer[100];
+            std::size_t read_bytes;
+            while (!ss.eof()) {
+                // Copy a chunk of data from the stream to the local buffer.
+                ss.read(buffer, static_cast<std::streamsize>(sizeof(buffer)));
+                // Figure out how much we actually read.
+                read_bytes = static_cast<std::size_t>(ss.gcount());
+                assert(read_bytes <= sizeof(buffer));
+                // Now let's send the current content of the buffer to the parent.
+                p.write(static_cast<const void *>(buffer), read_bytes);
+            }
+        };
+        // Fatal error message.
+        constexpr char fatal_msg[]
+            = "An unrecoverable error was raised while handling another error in the child process "
+              "of a fork_island. Giving up now.";
+        try {
+            // Close the read descriptor, we don't need to read anything from the parent.
+            p.close_r();
+            // Run the evolution.
+            auto algo = isl.get_algorithm();
+            auto new_pop = algo.evolve(isl.get_population());
+            // Pack in m and serialize the result of the evolution.
+            // NOTE: m was def cted, which, for tuples, value-inits all members.
+            // So the status flag is already zero and the error message empty.
+            std::get<2>(m) = std::move(algo);
+            std::get<3>(m) = std::move(new_pop);
+            // Serialize the message into a stringstream.
+            std::stringstream ss;
+            serialize_message(ss, m);
+            // NOTE: any error raised past this point may now result in incomplete/corrupted
+            // data being sent back to the parent. We have no way of recovering from that,
+            // so we will just bail out.
+            try {
+                // Send the evolved population/algorithm back to the parent.
+                send_ss(ss);
+                // Close the write descriptor.
+                p.close_w();
+                // All done, we can kill the child.
+                std::exit(0);
+            } catch (...) {
+                std::cerr << "An unrecoverable error was raised while trying to send data back to the parent process "
+                             "from the child process of a fork_island. Giving up now."
+                          << std::endl;
+                std::exit(1);
+            }
+        } catch (const std::exception &e) {
+            // If we caught an std::exception try to set the error message in m before continuing.
+            // We will try to send the error message back to the parent.
+            try {
+                std::get<1>(m) = e.what();
+            } catch (...) {
+                std::cerr << fatal_msg << std::endl;
+                std::exit(1);
+            }
+        } catch (...) {
+            // Not an std::exception, we won't have an error message.
+        }
+        // If we get here, it means that something went wrong above. We will try
+        // to send an error message back to the parent. Failing that, we will bail.
+        try {
+            // Set the error flag.
+            std::get<0>(m) = 1;
+            // Make sure the algo/pop in m are set to serializable entities.
+            std::get<2>(m) = algorithm{};
+            std::get<3>(m) = population{};
+            // Send the message.
+            std::stringstream ss;
+            serialize_message(ss, m);
+            send_ss(ss);
+            // Close the write descriptor.
+            p.close_w();
+            // All done, we can kill the child.
+            std::exit(0);
+        } catch (...) {
+            std::cerr << fatal_msg << std::endl;
+            std::exit(1);
+        }
+        // LCOV_EXCL_STOP
+    }
+}
+
+#endif
 
 /// Archipelago.
 /**
@@ -960,6 +1622,12 @@ inline void thread_island::run_evolve(island &isl) const
  *
  * An archipelago is a collection of pagmo::island objects which provides a convenient way to perform
  * multiple optimisations in parallel.
+ *
+ * The interface of pagmo::archipelago mirrors partially the interface
+ * of pagmo::island: the evolution is initiated by a call to evolve(), and at any time the user can query the
+ * state of the archipelago and access its island members. The user can explicitly wait for pending evolutions
+ * to conclude by calling the wait() and wait_check() methods. The status of
+ * ongoing evolutions in the archipelago can be queried via status().
  */
 class archipelago
 {
@@ -967,6 +1635,15 @@ class archipelago
     using size_type_implementation = container_t::size_type;
     using iterator_implementation = boost::indirect_iterator<container_t::iterator>;
     using const_iterator_implementation = boost::indirect_iterator<container_t::const_iterator>;
+
+    // NOTE: same utility method as in pagmo::island, see there.
+    void wait_check_ignore()
+    {
+        try {
+            wait_check();
+        } catch (...) {
+        }
+    }
 
 public:
     /// The size type of the archipelago.
@@ -979,8 +1656,13 @@ public:
     /**
      * Dereferencing a mutable iterator will yield a reference to an island within the archipelago.
      *
-     * **NOTE**: mutable iterators are provided solely in order to allow calling non-const methods
-     * on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    Mutable iterators are provided solely in order to allow calling non-const methods
+     *    on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     *
+     * \endverbatim
      */
     using iterator = iterator_implementation;
     /// Const iterator.
@@ -992,9 +1674,7 @@ public:
     /**
      * The default constructor will initialise an empty archipelago.
      */
-    archipelago()
-    {
-    }
+    archipelago() {}
     /// Copy constructor.
     /**
      * The islands of \p other will be copied into \p this via archipelago::push_back().
@@ -1024,7 +1704,7 @@ public:
         // NOTE: in move operations we have to wait, because the ongoing
         // island evolutions are interacting with their hosting archi 'other'.
         // We cannot just move in the vector of islands.
-        other.wait();
+        other.wait_check_ignore();
         // Move in the islands.
         m_islands = std::move(other.m_islands);
         // Re-direct the archi pointers to point to this.
@@ -1081,8 +1761,13 @@ private:
 public:
     /// Constructor from \p n islands.
     /**
-     * **NOTE**: this constructor is enabled only if the parameter pack \p Args
-     * can be used to construct a pagmo::island.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if the parameter pack ``Args``
+     *    can be used to construct a :cpp:class:`pagmo::island`.
+     *
+     * \endverbatim
      *
      * This constructor will forward \p n times the input arguments \p args to the
      * push_back() method. If, however, the parameter pack contains an argument which
@@ -1135,8 +1820,8 @@ public:
         if (this != &other) {
             // NOTE: as in the move ctor, we need to wait on other and this as well.
             // This mirrors the island's behaviour.
-            wait();
-            other.wait();
+            wait_check_ignore();
+            other.wait_check_ignore();
             // Move in the islands.
             m_islands = std::move(other.m_islands);
             // Re-direct the archi pointers to point to this.
@@ -1148,13 +1833,14 @@ public:
     }
     /// Destructor.
     /**
-     * The destructor will call archipelago::wait() internally, and run checks in debug mode.
+     * The destructor will call archipelago::wait_check() internally, ignoring any exception that might be thrown,
+     * and run checks in debug mode.
      */
     ~archipelago()
     {
         // NOTE: this is not strictly necessary, but it will not hurt. And, if we add further
         // sanity checks, we know the archi is stopped.
-        wait();
+        wait_check_ignore();
         assert(std::all_of(m_islands.begin(), m_islands.end(),
                            [this](const std::unique_ptr<island> &iptr) { return iptr->m_ptr->archi_ptr == this; }));
     }
@@ -1165,9 +1851,14 @@ public:
      * after a push_back() invocation. Assignment and destruction of the archipelago will invalidate island references
      * obtained via this method.
      *
-     * **NOTE**: the mutable version of the subscript operator exists solely to allow calling non-const methods
-     * on the islands. Assigning an island via a reference obtained through this operator will result
-     * in undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The mutable version of the subscript operator exists solely to allow calling non-const methods
+     *    on the islands. Assigning an island via a reference obtained through this operator will result
+     *    in undefined behaviour.
+     *
+     * \endverbatim
      *
      * @param i the index of the island to be accessed.
      *
@@ -1220,8 +1911,13 @@ private:
 public:
     /// Add island.
     /**
-     * **NOTE**: this method is enabled only if the parameter pack \p Args
-     * can be used to construct a pagmo::island.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This method is enabled only if the parameter pack ``Args``
+     *    can be used to construct a :cpp:class:`pagmo::island`.
+     *
+     * \endverbatim
      *
      * This method will construct an island from the supplied arguments and add it to the archipelago.
      * Islands are added at the end of the archipelago (that is, the new island will have an index
@@ -1242,8 +1938,9 @@ public:
     /// Evolve archipelago.
     /**
      * This method will call island::evolve() on all the islands of the archipelago.
-     * The input parameter \p n represent the number of times the <tt>run_evolve()</tt>
-     * method of the island's UDI is called within the evolution task.
+     * The input parameter \p n will be passed to the invocations of island::evolve() for each island.
+     * archipelago::status() can be used to query the status of the asynchronous operations in the
+     * archipelago.
      *
      * @param n the parameter that will be passed to island::evolve().
      *
@@ -1257,7 +1954,10 @@ public:
     }
     /// Block until all evolutions have finished.
     /**
-     * This method will call island::wait() on all the islands of the archipelago.
+     * This method will call island::wait() on all the islands of the archipelago. Exceptions thrown by island
+     * evolutions can be re-raised via wait_check(): they will **not** be re-thrown by this method. Also, contrary to
+     * wait_check(), this method will **not** reset the status of the archipelago: after a call to wait(), status() will
+     * always return either evolve_status::idle or evolve_status::idle_error.
      */
     void wait() noexcept
     {
@@ -1267,35 +1967,90 @@ public:
     }
     /// Block until all evolutions have finished and raise the first exception that was encountered.
     /**
-     * This method will call island::get() on all the islands of the archipelago.
-     * If an invocation of island::get() raises an exception, then on the remaining
-     * islands island::wait() will be called instead, and the raised exception will be re-raised
-     * by this method.
+     * This method will call island::wait_check() on all the islands of the archipelago (following
+     * the order in which the islands were inserted into the archipelago).
+     * The first exception raised by island::wait_check() will be re-raised by this method,
+     * and all the exceptions thrown by the other calls to island::wait_check() will be ignored.
+     *
+     * Note that wait_check() resets the status of the archipelago: after a call to wait_check(), status() will always
+     * return evolve_status::idle.
      *
      * @throws unspecified any exception thrown by any evolution task queued in the archipelago's
      * islands.
      */
-    void get()
+    void wait_check()
     {
         for (auto it = m_islands.begin(); it != m_islands.end(); ++it) {
             try {
-                (*it)->get();
+                (*it)->wait_check();
             } catch (...) {
                 for (it = it + 1; it != m_islands.end(); ++it) {
-                    (*it)->wait();
+                    (*it)->wait_check_ignore();
                 }
                 throw;
             }
         }
     }
-    /// Check archipelago status.
+    /// Status of the archipelago.
     /**
-     * @return \p true if at least one island is evolving, \p false otherwise.
+     * This method will return a pagmo::evolve_status flag indicating the current status of
+     * asynchronous operations in the archipelago. The flag will be:
+     *
+     * * evolve_status::idle if, for all the islands in the archipelago, island::status() returns
+     *   evolve_status::idle;
+     * * evolve_status::busy if, for at least one island in the archipelago, island::status() returns
+     *   evolve_status::busy, and for no island island::status() returns an error status;
+     * * evolve_status::idle_error if no island in the archipelago is busy and for at least one island
+     *   island::status() returns evolve_status::idle_error;
+     * * evolve_status::busy_error if, for at least one island in the archipelago, island::status() returns
+     *   an error status and at least one island is busy.
+     *
+     * Note that after a call to wait_check(), status() will always return evolve_status::idle,
+     * and after a call to wait(), status() will always return either evolve_status::idle or
+     * evolve_status::idle_error.
+     *
+     * @return a flag indicating the current status of asynchronous operations in the archipelago.
      */
-    bool busy() const
+    evolve_status status() const
     {
-        return std::any_of(m_islands.begin(), m_islands.end(),
-                           [](const std::unique_ptr<island> &iptr) { return iptr->busy(); });
+        decltype(m_islands.size()) n_idle = 0, n_busy = 0, n_idle_error = 0, n_busy_error = 0;
+        for (const auto &iptr : m_islands) {
+            switch (iptr->status()) {
+                case evolve_status::idle:
+                    ++n_idle;
+                    break;
+                case evolve_status::busy:
+                    ++n_busy;
+                    break;
+                case evolve_status::idle_error:
+                    ++n_idle_error;
+                    break;
+                case evolve_status::busy_error:
+                    ++n_busy_error;
+                    break;
+            }
+        }
+
+        // If we have at last one busy error, the global state
+        // is also busy error.
+        if (n_busy_error) {
+            return evolve_status::busy_error;
+        }
+
+        // The other error case.
+        if (n_idle_error) {
+            if (n_busy) {
+                // At least one island is idle with error. If any other
+                // island is busy, we return busy error.
+                return evolve_status::busy_error;
+            }
+            // No island is busy at all, at least one island is idle with error.
+            return evolve_status::idle_error;
+        }
+
+        // No error in any island. If they are all idle, the global state is idle,
+        // otherwise busy.
+        return n_idle == m_islands.size() ? evolve_status::idle : evolve_status::busy;
     }
     /// Mutable begin iterator.
     /**
@@ -1305,8 +2060,13 @@ public:
      *
      * Adding an island to the archipelago will invalidate all existing iterators.
      *
-     * **NOTE**: mutable iterators are provided solely in order to allow calling non-const methods
-     * on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    Mutable iterators are provided solely in order to allow calling non-const methods
+     *    on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a mutable iterator to the beginning of the island container.
      */
@@ -1320,8 +2080,13 @@ public:
      *
      * Adding an island to the archipelago will invalidate all existing iterators.
      *
-     * **NOTE**: mutable iterators are provided solely in order to allow calling non-const methods
-     * on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    Mutable iterators are provided solely in order to allow calling non-const methods
+     *    on the islands. Assigning an island via a mutable iterator will be undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a mutable iterator to the end of the island container.
      */
@@ -1372,13 +2137,13 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const archipelago &archi)
     {
         stream(os, "Number of islands: ", archi.size(), "\n");
-        stream(os, "Evolving: ", archi.busy(), "\n\n");
+        stream(os, "Status: ", archi.status(), "\n\n");
         stream(os, "Islands summaries:\n\n");
-        detail::table t({"#", "Type", "Algo", "Prob", "Size", "Evolving"}, "\t");
+        detail::table t({"#", "Type", "Algo", "Prob", "Size", "Status"}, "\t");
         for (decltype(archi.size()) i = 0; i < archi.size(); ++i) {
             const auto pop = archi[i].get_population();
             t.add_row(i, archi[i].get_name(), archi[i].get_algorithm().get_name(), pop.get_problem().get_name(),
-                      pop.size(), archi[i].busy());
+                      pop.size(), archi[i].status());
         }
         stream(os, t);
         return os;
@@ -1446,8 +2211,14 @@ public:
 private:
     container_t m_islands;
 };
-}
+} // namespace pagmo
 
 PAGMO_REGISTER_ISLAND(pagmo::thread_island)
+
+#if defined(PAGMO_WITH_FORK_ISLAND)
+
+PAGMO_REGISTER_ISLAND(pagmo::fork_island)
+
+#endif
 
 #endif

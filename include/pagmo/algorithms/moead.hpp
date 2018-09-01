@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,15 +36,15 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp" // needed for the cereal macro
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../problem.hpp"
-#include "../problems/decompose.hpp"
-#include "../rng.hpp"
-#include "../utils/generic.hpp"         // kNN
-#include "../utils/multi_objective.hpp" // ideal
+#include <pagmo/algorithm.hpp> // needed for the cereal macro
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/problems/decompose.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>         // kNN
+#include <pagmo/utils/multi_objective.hpp> // ideal
 
 namespace pagmo
 {
@@ -53,21 +53,31 @@ namespace pagmo
  * \image html moead.png "Solving by decomposition" width=3cm
  *
  * MOEA/D-DE is a very successful multi-objective optimization algorithm, always worth a try. Based on the idea of
- * problem decomposition, it leverages on evolutionary operators to combine good solutions of neighbouring problems thus
- * allowing for nice convergence properties. MOEA/D is, essentially, a framework and this particual algorithm
+ * problem decomposition, it leverages evolutionary operators to combine good solutions of neighbouring problems thus
+ * allowing for nice convergence properties. MOEA/D is, essentially, a framework and this particular algorithm
  * implemented in pagmo with the name pagmo::moead uses the rand/2/exp Differential Evolution operator followed by a
- * polynomial mutation to create offsprings, and the tchebycheff, wieghted or boundary intersection decomposition method
- * decomposition method. A diversity preservation mechanism, as proposed in the work from Li et al. referenced below, is
+ * polynomial mutation to create offsprings, and the Tchebycheff, weighted or boundary intersection decomposition
+ * method. A diversity preservation mechanism, as proposed in the work from Li et al. referenced below, is
  * also implemented.
  *
- * **NOTE** The decomposition weights may be created by sampling on a simplex via a low discrepancy sequence. This
- * allows to have MOEA/D-DE work on populations having arbitrary size, while preserving a nice coverage of the final
- * non-dominated front.
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * See: Zhang, Qingfu, and Hui Li. "MOEA/D: A multiobjective evolutionary algorithm based on decomposition."
- * Evolutionary Computation, IEEE Transactions on 11.6 (2007): 712-731.
- * See: Li, Hui, and Qingfu Zhang. "Multiobjective optimization problems with complicated Pareto sets, MOEA/D and
- * NSGA-II." Evolutionary Computation, IEEE Transactions on 13.2 (2009): 284-302.
+ *    The decomposition weights may be created by sampling on a simplex via a low discrepancy sequence. This
+ *    allows to have MOEA/D-DE work on populations having arbitrary size, while preserving a nice coverage of the final
+ *    non-dominated front.
+ *
+ * .. seealso::
+ *
+ *    Zhang, Qingfu, and Hui Li. "MOEA/D: A multiobjective evolutionary algorithm based on decomposition."
+ *    Evolutionary Computation, IEEE Transactions on 11.6 (2007): 712-731.
+ *
+ * .. seealso::
+ *
+ *    Li, Hui, and Qingfu Zhang. "Multiobjective optimization problems with complicated Pareto sets, MOEA/D and
+ *    NSGA-II." Evolutionary Computation, IEEE Transactions on 13.2 (2009): 284-302.
+ *
+ * \endverbatim
  */
 class moead
 {
@@ -79,24 +89,24 @@ public:
 
     /// Constructor
     /**
-    * Constructs MOEA/D-DE
-    *
-    * @param gen number of generations
-    * @param weight_generation method used to generate the weights, one of "grid", "low discrepancy" or "random"
-    * @param decomposition decomposition method: one of "weighted", "tchebycheff" or "bi"
-    * @param neighbours size of the weight's neighborhood
-    * @param CR crossover parameter in the Differential Evolution operator
-    * @param F parameter for the Differential Evolution operator
-    * @param eta_m distribution index used by the polynomial mutation
-    * @param realb chance that the neighbourhood is considered at each generation, rather than the whole population
-    * (only if preserve_diversity is true)
-    * @param limit maximum number of copies reinserted in the population  (only if m_preserve_diversity is true)
-    * @param preserve_diversity when true activates the two diversity preservation mechanisms described in Li, Hui,
-    * and Qingfu Zhang paper
-    * @param seed seed used by the internal random number generator (default is random)
-    * @throws value_error if gen is negative, weight_generation is not one of the allowed types, realb,cr or f are not
-    * in [1.0] or m_eta is < 0
-    */
+     * Constructs MOEA/D-DE
+     *
+     * @param gen number of generations
+     * @param weight_generation method used to generate the weights, one of "grid", "low discrepancy" or "random"
+     * @param decomposition decomposition method: one of "weighted", "tchebycheff" or "bi"
+     * @param neighbours size of the weight's neighborhood
+     * @param CR crossover parameter in the Differential Evolution operator
+     * @param F parameter for the Differential Evolution operator
+     * @param eta_m distribution index used by the polynomial mutation
+     * @param realb chance that the neighbourhood is considered at each generation, rather than the whole population
+     * (only if preserve_diversity is true)
+     * @param limit maximum number of copies reinserted in the population  (only if m_preserve_diversity is true)
+     * @param preserve_diversity when true activates the two diversity preservation mechanisms described in Li, Hui,
+     * and Qingfu Zhang paper
+     * @param seed seed used by the internal random number generator (default is random)
+     * @throws value_error if gen is negative, weight_generation is not one of the allowed types, realb,cr or f are not
+     * in [1.0] or m_eta is < 0
+     */
     moead(unsigned int gen = 1u, std::string weight_generation = "grid", std::string decomposition = "tchebycheff",
           population::size_type neighbours = 20u, double CR = 1.0, double F = 0.5, double eta_m = 20.,
           double realb = 0.9, unsigned int limit = 2u, bool preserve_diversity = true,
@@ -407,7 +417,7 @@ public:
      */
     std::string get_name() const
     {
-        return "MOEA/D - DE";
+        return "MOEAD: MOEA/D - DE";
     }
     /// Extra informations
     /**

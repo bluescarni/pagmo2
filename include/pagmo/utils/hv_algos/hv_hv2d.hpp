@@ -1,26 +1,30 @@
-/*****************************************************************************
-*   Copyright (C) 2004-2015 The PaGMO development team,                     *
-*   Advanced Concepts Team (ACT), European Space Agency (ESA)               *
-*                                                                           *
-*   https://github.com/esa/pagmo                                            *
-*                                                                           *
-*   act@esa.int                                                             *
-*                                                                           *
-*   This program is free software; you can redistribute it and/or modify    *
-*   it under the terms of the GNU General Public License as published by    *
-*   the Free Software Foundation; either version 2 of the License, or       *
-*   (at your option) any later version.                                     *
-*                                                                           *
-*   This program is distributed in the hope that it will be useful,         *
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
-*   GNU General Public License for more details.                            *
-*                                                                           *
-*   You should have received a copy of the GNU General Public License       *
-*   along with this program; if not, write to the                           *
-*   Free Software Foundation, Inc.,                                         *
-*   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.               *
-*****************************************************************************/
+/* Copyright 2017-2018 PaGMO development team
+
+This file is part of the PaGMO library.
+
+The PaGMO library is free software; you can redistribute it and/or modify
+it under the terms of either:
+
+  * the GNU Lesser General Public License as published by the Free
+    Software Foundation; either version 3 of the License, or (at your
+    option) any later version.
+
+or
+
+  * the GNU General Public License as published by the Free Software
+    Foundation; either version 3 of the License, or (at your option) any
+    later version.
+
+or both in parallel, as here.
+
+The PaGMO library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received copies of the GNU General Public License and the
+GNU Lesser General Public License along with the PaGMO library.  If not,
+see https://www.gnu.org/licenses/. */
 
 #ifndef PAGMO_UTIL_hv2d_H
 #define PAGMO_UTIL_hv2d_H
@@ -31,12 +35,12 @@
 #include <string>
 #include <vector>
 
-#include "../../exceptions.hpp"
-#include "../../io.hpp"
-#include "../../population.hpp"
-#include "../../types.hpp"
-#include "../hypervolume.hpp"
-#include "hv_algorithm.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/types.hpp>
+#include <pagmo/utils/hv_algos/hv_algorithm.hpp>
+#include <pagmo/utils/hypervolume.hpp>
 
 namespace pagmo
 {
@@ -48,30 +52,28 @@ namespace pagmo
  * partial areas linearly.
  *
  */
-class hv2d : public hv_algorithm
+class hv2d final : public hv_algorithm
 {
 public:
     /// Constructor
     /**
      * @param initial_sorting Turn initial sorting on-off
      */
-    hv2d(const bool initial_sorting = true) : m_initial_sorting(initial_sorting)
-    {
-    }
+    hv2d(const bool initial_sorting = true) : m_initial_sorting(initial_sorting) {}
 
     /// Compute hypervolume method.
     /**
-    * This method should be used both as a solution to 2-dimensional cases, and as a general termination method for
-    * algorithms that reduce n-dimensional problem to 2D.
-    *
-    * Computational complexity: n*log(n)
-    *
-    * @param points vector of points containing the 2-dimensional points for which we compute the hypervolume
-    * @param r_point reference point for the points
-    *
-    * @return hypervolume
-    */
-    double compute(std::vector<vector_double> &points, const vector_double &r_point) const
+     * This method should be used both as a solution to 2-dimensional cases, and as a general termination method for
+     * algorithms that reduce n-dimensional problem to 2D.
+     *
+     * Computational complexity: n*log(n)
+     *
+     * @param points vector of points containing the 2-dimensional points for which we compute the hypervolume
+     * @param r_point reference point for the points
+     *
+     * @return hypervolume
+     */
+    double compute(std::vector<vector_double> &points, const vector_double &r_point) const override
     {
         if (points.size() == 0u) {
             return 0.0;
@@ -99,19 +101,19 @@ public:
 
     /// Compute hypervolume method.
     /**
-    * This method should be used both as a solution to 2-dimensional cases, and as a general termination method for
-    * algorithms that reduce n-dimensional problem to 2d.
-    * This method is overloaded to work with arrays of double, in order to provide other algorithms that internally work
-    * with arrays (such as hv_algorithm::wfg) with an efficient computation.
-    *
-    * Computational complexity: n*log(n)
-    *
-    * @param points array of 2-dimensional points
-    * @param n_points number of points
-    * @param r_point 2-dimensional reference point for the points
-    *
-    * @return hypervolume
-    */
+     * This method should be used both as a solution to 2-dimensional cases, and as a general termination method for
+     * algorithms that reduce n-dimensional problem to 2d.
+     * This method is overloaded to work with arrays of double, in order to provide other algorithms that internally
+     * work with arrays (such as hv_algorithm::wfg) with an efficient computation.
+     *
+     * Computational complexity: n*log(n)
+     *
+     * @param points array of 2-dimensional points
+     * @param n_points number of points
+     * @param r_point 2-dimensional reference point for the points
+     *
+     * @return hypervolume
+     */
     double compute(double **points, vector_double::size_type n_points, double *r_point) const
     {
         if (n_points == 0u) {
@@ -139,34 +141,34 @@ public:
 
     /// Contributions method
     /**
-    * Computes the contributions of each point by invoking the HV3D algorithm with mock third dimension.
-    *
-    * @param points vector of points containing the 2-dimensional points for which we compute the hypervolume
-    * @param r_point reference point for the points
-    * @return vector of exclusive contributions by every point
-    */
-    std::vector<double> contributions(std::vector<vector_double> &points, const vector_double &r_point) const;
+     * Computes the contributions of each point by invoking the HV3D algorithm with mock third dimension.
+     *
+     * @param points vector of points containing the 2-dimensional points for which we compute the hypervolume
+     * @param r_point reference point for the points
+     * @return vector of exclusive contributions by every point
+     */
+    std::vector<double> contributions(std::vector<vector_double> &points, const vector_double &r_point) const override;
 
     /// Clone method.
     /**
      * @return a pointer to a new object cloning this
      */
-    std::shared_ptr<hv_algorithm> clone() const
+    std::shared_ptr<hv_algorithm> clone() const override
     {
         return std::shared_ptr<hv_algorithm>(new hv2d(*this));
     }
 
     /// Verify input method.
     /**
-    * Verifies whether the requested data suits the hv2d algorithm.
-    *
-    * @param points vector of points containing the d dimensional points for which we compute the hypervolume
-    * @param r_point reference point for the vector of points
-    *
-    * @throws value_error when trying to compute the hypervolume for the dimension other than 3 or non-maximal reference
-    * point
-    */
-    void verify_before_compute(const std::vector<vector_double> &points, const vector_double &r_point) const
+     * Verifies whether the requested data suits the hv2d algorithm.
+     *
+     * @param points vector of points containing the d dimensional points for which we compute the hypervolume
+     * @param r_point reference point for the vector of points
+     *
+     * @throws value_error when trying to compute the hypervolume for the dimension other than 3 or non-maximal
+     * reference point
+     */
+    void verify_before_compute(const std::vector<vector_double> &points, const vector_double &r_point) const override
     {
         if (r_point.size() != 2u) {
             pagmo_throw(std::invalid_argument, "Algorithm hv2d works only for 2-dimensional cases.");
@@ -179,7 +181,7 @@ public:
     /**
      * @return The name of this particular algorithm
      */
-    std::string get_name() const
+    std::string get_name() const override
     {
         return "hv2d algorithm";
     }
@@ -188,6 +190,6 @@ private:
     // Flag stating whether the points should be sorted in the first step of the algorithm.
     const bool m_initial_sorting;
 };
-}
+} // namespace pagmo
 
 #endif

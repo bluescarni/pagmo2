@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -71,6 +71,7 @@ struct task_queue {
                     lock.unlock();
                     task();
                 }
+                // LCOV_EXCL_START
             } catch (...) {
                 // The errors we could get here are:
                 // - threading primitives,
@@ -80,6 +81,7 @@ struct task_queue {
                 // In any case, not much that can be done to recover from this, better to abort.
                 // NOTE: logging candidate.
                 std::abort();
+                // LCOV_EXCL_STOP
             }
         });
     }
@@ -89,8 +91,10 @@ struct task_queue {
         // log it and abort as there is not much we can do).
         try {
             stop();
+            // LCOV_EXCL_START
         } catch (...) {
             std::abort();
+            // LCOV_EXCL_STOP
         }
     }
     // Main enqueue function.
@@ -139,7 +143,7 @@ struct task_queue {
     std::queue<std::function<void()>> m_tasks;
     std::thread m_thread;
 };
-}
-}
+} // namespace detail
+} // namespace pagmo
 
 #endif

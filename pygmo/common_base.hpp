@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -29,13 +29,13 @@ see https://www.gnu.org/licenses/. */
 #ifndef PYGMO_COMMON_BASE_HPP
 #define PYGMO_COMMON_BASE_HPP
 
-#include "python_includes.hpp"
+#include <pygmo/python_includes.hpp>
 
 #include <boost/python/extract.hpp>
 #include <boost/python/object.hpp>
 #include <string>
 
-#include "common_utils.hpp"
+#include <pygmo/common_utils.hpp>
 
 namespace pygmo
 {
@@ -83,6 +83,6 @@ struct common_base {
         }
     }
 };
-}
+} // namespace pygmo
 
 #endif

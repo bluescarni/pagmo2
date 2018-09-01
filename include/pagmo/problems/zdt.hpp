@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -38,12 +38,12 @@ see https://www.gnu.org/licenses/. */
 #include <utility>
 #include <vector>
 
-#include "../detail/constants.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../problem.hpp"
-#include "../types.hpp"
+#include <pagmo/detail/constants.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -59,11 +59,19 @@ namespace pagmo
  * any point to the Pareto front while creating interesting problems. They also suggest some
  * dimensions for instantiating the problems, namely \f$m = [30, 30, 30, 10, 11, 10]\f$.
  *
- * **NOTE** The ZDT5 problem is an integer problem, its chromosome is here represented with doubles floored
- * via std::floor().
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * See: Zitzler, Eckart, Kalyanmoy Deb, and Lothar Thiele. "Comparison of multiobjective evolutionary algorithms:
- * Empirical results." Evolutionary computation 8.2 (2000): 173-195. doi: 10.1.1.30.5848
+ *    The ZDT5 problem is an integer problem, its fitness is computed rounding all the chromosome values,
+ *    so that [1,0,1] or [0.97, 0.23, 0.57] will have the same fitness. Integer relaxation techniques are
+ *    thus not appropriate fot this type of fitness.
+ *
+ * .. seealso::
+ *
+ *    Zitzler, Eckart, Kalyanmoy Deb, and Lothar Thiele. "Comparison of multiobjective evolutionary algorithms:
+ *    Empirical results." Evolutionary computation 8.2 (2000): 173-195. doi: 10.1.1.30.5848
+ *
+ * \endverbatim
  *
  * ZDT1:
  *
@@ -226,20 +234,40 @@ public:
             }
             case 5u: {
                 auto dim = 30u + 5u * (m_param - 1u);
-                retval
-                    = {vector_double(dim, 0.),
-                       vector_double(
-                           dim,
-                           1.)}; // the bounds [0,1] imply that round(x) will be in [0,1] as the rng generates in [0,1)
+                retval = {vector_double(dim, 0.), vector_double(dim, 1.)};
                 break;
             }
         }
         return retval;
     }
+
+    /// Integer dimension
+    /**
+     * It returns the integer dimension for this UDP.
+     *
+     * @return the integer dimension of the UDP
+     */
+    vector_double::size_type get_nix() const
+    {
+        vector_double::size_type retval = 0u;
+        switch (m_prob_id) {
+            case 1u:
+            case 2u:
+            case 3u:
+            case 4u:
+            case 6u:
+                retval = 0u;
+                break;
+            case 5u: {
+                retval = 30u + 5u * (m_param - 1u);
+                break;
+            }
+        }
+        return retval;
+    }
+
     /// Problem name
     /**
-     *
-     *
      * @return a string containing the problem name
      */
     std::string get_name() const
@@ -524,7 +552,7 @@ private:
     unsigned int m_prob_id;
     unsigned int m_param;
 };
-}
+} // namespace pagmo
 
 PAGMO_REGISTER_PROBLEM(pagmo::zdt)
 

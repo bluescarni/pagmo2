@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,12 +36,11 @@ see https://www.gnu.org/licenses/. */
  */
 
 #include <stdexcept>
-#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 
-#include "type_traits.hpp"
+#include <pagmo/type_traits.hpp>
 
 namespace pagmo
 {
@@ -83,8 +82,8 @@ struct ex_thrower {
     const line_type m_line;
     const char *m_func;
 };
-}
-}
+} // namespace detail
+} // namespace pagmo
 
 /// Exception-throwing macro.
 /**
@@ -128,6 +127,6 @@ namespace pagmo
 struct not_implemented_error final : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
-}
+} // namespace pagmo
 
 #endif

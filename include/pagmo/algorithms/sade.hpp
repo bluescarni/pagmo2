@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,12 +36,12 @@ see https://www.gnu.org/licenses/. */
 #include <tuple>
 #include <utility> //std::swap
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../utils/generic.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>
 
 namespace pagmo
 {
@@ -62,18 +62,35 @@ namespace pagmo
  * operator to produce new
  * CR anf F parameters for each individual. We refer to this variant as to iDE.
  *
- * **NOTE** There exist an algorithm referred to as SaDE in the literature. This is not the algorithm implemented in
- * PaGMO.
+ * \verbatim embed:rst:leading-asterisk
+ * .. warning::
  *
- * **NOTE** The feasibility correction, that is the correction applied to an allele when some mutation puts it outside
- * the allowed box-bounds, is here done by creating a random number in the bounds.
+ *    A moved-from pagmo::sade is destructible and assignable. Any other operation will result
+ *    in undefined behaviour.
  *
- * See: (jDE) - Brest, J., Greiner, S., Bošković, B., Mernik, M., & Zumer, V. (2006). Self-adapting control parameters
- * in differential evolution: a comparative study on numerical benchmark problems. Evolutionary Computation, IEEE
- * Transactions on, 10(6), 646-657. Chicago
- * See: (iDE) - Elsayed, S. M., Sarker, R. A., & Essam, D. L. (2011, June). Differential evolution with multiple
- * strategies for solving CEC2011 real-world numerical optimization problems. In Evolutionary Computation (CEC), 2011
- * IEEE Congress on (pp. 1041-1048). IEEE.
+ * .. warning::
+ *
+ *    The algorithm referred to as SaDE in the literature is not the algorithm implemented in pagmo. We
+ *    use the name sade to indicate, generically, self-adaptation in a differential evolution algorithm
+ *
+ * .. note::
+ *
+ *    The feasibility correction, that is the correction applied to an allele when some mutation puts it outside
+ *    the allowed box-bounds, is here done by creating a random number in the bounds.
+ *
+ * .. seealso::
+ *
+ *    (jDE) - Brest, J., Greiner, S., Bošković, B., Mernik, M., & Zumer, V. (2006). Self-adapting control parameters
+ *    in differential evolution: a comparative study on numerical benchmark problems. Evolutionary Computation, IEEE
+ *    Transactions on, 10(6), 646-657. Chicago
+ *
+ * .. seealso::
+ *
+ *    (iDE) - Elsayed, S. M., Sarker, R. A., & Essam, D. L. (2011, June). Differential evolution with multiple
+ *    strategies for solving CEC2011 real-world numerical optimization problems. In Evolutionary Computation (CEC), 2011
+ *    IEEE Congress on (pp. 1041-1048). IEEE.
+ * \endverbatim
+ *
  */
 class sade
 {
@@ -133,7 +150,7 @@ public:
                             + std::to_string(variant) + " was detected.");
         }
         if (variant_adptv < 1u || variant_adptv > 2u) {
-            pagmo_throw(std::invalid_argument, "The variant for self-adaptation mus be in [1,2], while a value of "
+            pagmo_throw(std::invalid_argument, "The variant for self-adaptation must be in [1,2], while a value of "
                                                    + std::to_string(variant_adptv) + " was detected.");
         }
     }
@@ -608,28 +625,27 @@ public:
             /* swap population arrays. New generation becomes old one */
             std::swap(popold, popnew);
 
-            // Check the exit conditions (every 40 generations)
+            // Check the exit conditions
             double dx = 0., df = 0.;
-            if (gen % 40u == 0u) {
-                best_idx = pop.best_idx();
-                worst_idx = pop.worst_idx();
-                for (decltype(dim) i = 0u; i < dim; ++i) {
-                    dx += std::abs(pop.get_x()[worst_idx][i] - pop.get_x()[best_idx][i]);
-                }
-                if (dx < m_xtol) {
-                    if (m_verbosity > 0u) {
-                        std::cout << "Exit condition -- xtol < " << m_xtol << std::endl;
-                    }
-                    return pop;
-                }
 
-                df = std::abs(pop.get_f()[worst_idx][0] - pop.get_f()[best_idx][0]);
-                if (df < m_Ftol) {
-                    if (m_verbosity > 0u) {
-                        std::cout << "Exit condition -- ftol < " << m_Ftol << std::endl;
-                    }
-                    return pop;
+            best_idx = pop.best_idx();
+            worst_idx = pop.worst_idx();
+            for (decltype(dim) i = 0u; i < dim; ++i) {
+                dx += std::abs(pop.get_x()[worst_idx][i] - pop.get_x()[best_idx][i]);
+            }
+            if (dx < m_xtol) {
+                if (m_verbosity > 0u) {
+                    std::cout << "Exit condition -- xtol < " << m_xtol << std::endl;
                 }
+                return pop;
+            }
+
+            df = std::abs(pop.get_f()[worst_idx][0] - pop.get_f()[best_idx][0]);
+            if (df < m_Ftol) {
+                if (m_verbosity > 0u) {
+                    std::cout << "Exit condition -- ftol < " << m_Ftol << std::endl;
+                }
+                return pop;
             }
 
             // Logs and prints (verbosity modes > 1: a line is added every m_verbosity generations)
@@ -647,8 +663,8 @@ public:
                     df = std::abs(pop.get_f()[worst_idx][0] - pop.get_f()[best_idx][0]);
                     // Every 50 lines print the column names
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15), "Best:",
-                              std::setw(15), "F:", std::setw(15), "CR:", std::setw(15), "dx:", std::setw(15),
+                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15),
+                              "Best:", std::setw(15), "F:", std::setw(15), "CR:", std::setw(15), "dx:", std::setw(15),
                               std::setw(15), "df:", '\n');
                     }
                     print(std::setw(7), gen, std::setw(15), prob.get_fevals() - fevals0, std::setw(15),
@@ -738,7 +754,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Self-adaptive Differential Evolution";
+        return "saDE: Self-adaptive Differential Evolution";
     }
     /// Extra informations
     /**

@@ -1,4 +1,4 @@
-.. _py_tutorial_cec2013_copm:
+.. _py_tutorial_cec2013_comp:
 
 Participating to the CEC2013 Competition
 ===============================================
@@ -24,6 +24,7 @@ as usual, we can quickly inspect the :class:`~pygmo.problem` printing it to scre
     >>> print(prob) #doctest: +NORMALIZE_WHITESPACE
     Problem name: CEC2013 - f24(cf04)
     	Global dimension:			10
+    	Integer dimension:			0
     	Fitness dimension:			1
     	Number of objectives:			1
     	Equality constraints dimension:		0
@@ -36,7 +37,7 @@ as usual, we can quickly inspect the :class:`~pygmo.problem` printing it to scre
     	Has hessians: false
     	User implemented hessians sparsity: false
     <BLANKLINE>
-    	Function evaluations: 0
+    	Fitness evaluations: 0
     <BLANKLINE>
     	Thread safety: basic
     <BLANKLINE>
@@ -44,7 +45,7 @@ as usual, we can quickly inspect the :class:`~pygmo.problem` printing it to scre
 Let us assume we want to assess the performance of (say) the optimization algorithm :class:`~pygmo.cmaes` (which
 implements as user-defined algorithm the Covariance Matrix Adaptation Evolutionary Strategy) on the whole
 :class:`~pygmo.cec2013` problem suite at dimension D=2. Since the competition rules allowed D * 10000
-function evaluations, we choose a population of 50 and 400 generations:
+fitness evaluations, we choose a population of 50 and 400 generations:
 
 .. image:: ../../images/cec2013_2_jde.png
     :scale: 50 %
@@ -69,7 +70,7 @@ function evaluations, we choose a population of 50 and 400 generations:
 .. doctest::
 
     >>> # The cmaes pygmo algorithm
-    >>> algo = pg.algorithm(pg.cmaes(gen=400, ftol=1e-9, xtol=1e-9))
+    >>> algo = pg.algorithm(pg.cmaes(gen=1000, ftol=1e-9, xtol=1e-9))
     >>> # Defining all 28 problems dimension
     >>> D = 2
     >>> # Running the algo on them multiple times
@@ -80,7 +81,7 @@ function evaluations, we choose a population of 50 and 400 generations:
     ... 		prob = pg.problem(pg.cec2013(prob_id = i+1, dim = D))
     ... 		pop = pg.population(prob,50)
     ... 		pop = algo.evolve(pop)
-    ... 		error.append(pop.get_f()[pop.best_idx()] + 1400 - 100*i - 100*(i>13))
+    ... 		error.append(pop.get_f()[pop.best_idx()][0] + 1400 - 100*i - 100*(i>13))
 
 At the end of the script, a matplotlib boxplot can be easily produced reporting the results for each of the 28
 problem instances:
@@ -100,11 +101,11 @@ The same can be done for different user-defined algorithms. In the various figur
 we have reported only a few available from pygmo's core. At this low dimension it can be seen how
 the particular instances choosen for :class:`~pygmo.cmaes` and :class:`~pygmo.sade` (jDE) are
 performing particularly well. It has to be noted here that :class:`~pygmo.cmaes` results, in general,
-to spend less than the available budget of function evaluations so that a proper comparison at these low
+to spend less than the available budget of fitness evaluations so that a proper comparison at these low
 dimensionality should allow for restarts as to properly make use of the allowed budget.
 
 The script above can be run again for higher problem dimensions, so that, for example, at D = 10 and using a larger
-population size as to allow for the larger available budget of function evaluations, the following plots are obtained for
+population size as to allow for the larger available budget of fitness evaluations, the following plots are obtained for
 the chosen instances of :class:`~pygmo.cmaes` and :class:`~pygmo.sade`:
 
 .. image:: ../../images/cec2013_10_cmaes.png

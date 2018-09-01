@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,12 +36,11 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <vector>
 
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../problem.hpp"
-#include "../rng.hpp"
-#include "../serialization.hpp"
-#include "../types.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {

@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -41,10 +41,10 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <utility>
 
-#include "../detail/custom_comparisons.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../types.hpp"
+#include <pagmo/detail/custom_comparisons.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -88,7 +88,7 @@ inline std::pair<vector_double::size_type, double> test_ineq_constraints(It1 cin
     return std::pair<vector_double::size_type, double>(n, std::sqrt(l2));
 }
 
-} // detail namespace
+} // namespace detail
 
 /** Compares two fitness vectors in a single-objective, constrained, case (from a vector of tolerances)
  *
@@ -102,8 +102,13 @@ inline std::pair<vector_double::size_type, double> test_ineq_constraints(It1 cin
  * - \f$f_1 \prec f_2\f$ if both fitness vectors are feasible and the objective value
  * in \f$f_1\f$ is smaller than the objectve value in \f$f_2\f$
  *
- * **NOTE**: the fitness vectors are assumed to contain exactly one objective, \p neq equality
- * constraints and the rest (if any) inequality constraints
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
+ *
+ *    The fitness vectors are assumed to contain exactly one objective, ``neq`` equality
+ *    constraints and the rest (if any) inequality constraints
+ *
+ * \endverbatim
  *
  * @param f1 first fitness vector
  * @param f2 second fitness vector
@@ -122,8 +127,8 @@ inline bool compare_fc(const vector_double &f1, const vector_double &f2, vector_
 {
     // 1 - The two fitness must have the same dimension
     if (f1.size() != f2.size()) {
-        pagmo_throw(std::invalid_argument, "Fitness dimensions should be equal: " + std::to_string(f1.size()) + " != "
-                                               + std::to_string(f2.size()));
+        pagmo_throw(std::invalid_argument, "Fitness dimensions should be equal: " + std::to_string(f1.size())
+                                               + " != " + std::to_string(f2.size()));
     }
     // 2 - The dimension of the fitness vectors must be at least 1
     if (f1.size() < 1u) {
@@ -132,10 +137,10 @@ inline bool compare_fc(const vector_double &f1, const vector_double &f2, vector_
     }
     // 3 - The dimension of the tolerance vector must be that of the fitness minus one
     if (f1.size() - 1u != tol.size()) {
-        pagmo_throw(std::invalid_argument, "Tolerance vector dimension is detected to be: " + std::to_string(tol.size())
-                                               + ", while the fitness dimension is: " + std::to_string(f1.size())
-                                               + ", I was expecting the tolerance vector dimension to be: "
-                                               + std::to_string(f1.size() - 1u));
+        pagmo_throw(std::invalid_argument,
+                    "Tolerance vector dimension is detected to be: " + std::to_string(tol.size())
+                        + ", while the fitness dimension is: " + std::to_string(f1.size())
+                        + ", I was expecting the tolerance vector dimension to be: " + std::to_string(f1.size() - 1u));
     }
     // 4 - The number of equality constraints must be at most f1.size()-1
     if (neq > f1.size() - 1u) {
@@ -198,12 +203,17 @@ inline bool compare_fc(const vector_double &f1, const vector_double &f2, vector_
  * - \f$f_1 \prec f_2\f$ if \f$f_1\f$ is they are both infeasible, but \f$f_1\f$
  * violates less constraints than \f$f_2\f$, or in case they both violate the same
  * number of constraints, if the \f$L_2\f$ norm of the overall constraint violation
- is smaller.
+ * is smaller.
  * - \f$f_1 \prec f_2\f$ if both fitness vectors are feasible and the objective value
  * in \f$f_1\f$ is smaller than the objectve value in \f$f_2\f$
  *
- * **NOTE**: the fitness vectors are assumed to contain exactly one objective, \p neq equality
- * constraints and the rest (if any) inequality constraints
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
+ *
+ *    The fitness vectors are assumed to contain exactly one objective, ``neq`` equality
+ *    constraints and the rest (if any) inequality constraints
+ *
+ * \endverbatim
  *
  * @param input_f an <tt>std::vector</tt> of fitness vectors (containing objectives and constraints)
  * @param neq number of equality constraints

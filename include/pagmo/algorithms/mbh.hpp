@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -36,15 +36,15 @@ see https://www.gnu.org/licenses/. */
 #include <tuple>
 #include <vector>
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../type_traits.hpp"
-#include "../utils/constrained.hpp"
-#include "../utils/generic.hpp" // pagmo::uniform_real_from_range
-#include "compass_search.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/algorithms/compass_search.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/type_traits.hpp>
+#include <pagmo/utils/constrained.hpp>
+#include <pagmo/utils/generic.hpp> // pagmo::uniform_real_from_range
 
 namespace pagmo
 {
@@ -64,7 +64,7 @@ namespace pagmo
  * individual is used and coupled with a local optimizer, the original method is recovered.
  * The pseudo code of our generalized version is:
  * @code{.unparsed}
- * > Select a pagmo::population
+ * > Create a pagmo::population
  * > Select a UDA
  * > Store best individual
  * > while i < stop_criteria
@@ -79,7 +79,7 @@ namespace pagmo
  *
  * pagmo::mbh is a user-defined algorithm (UDA) that can be used to construct pagmo::algorithm objects.
  *
- * See: http://arxiv.org/pdf/cond-mat/9803344 for the paper introducing the basin hopping idea for a Lennard-Jones
+ * See: https://arxiv.org/pdf/cond-mat/9803344.pdf for the paper introducing the basin hopping idea for a Lennard-Jones
  * cluster optimization.
  */
 class mbh
@@ -111,8 +111,12 @@ public:
     }
     /// Constructor (scalar perturbation).
     /**
-     * **NOTE** This constructor is enabled only if \p T can be used to construct a pagmo::algorithm.
-
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if ``T`` can be used to construct a :cpp:class:`pagmo::algorithm`.
+     *
+     * \endverbatim
      *
      * This constructor will construct a monotonic basin hopping algorithm using a scalar perturbation.
      *
@@ -138,12 +142,17 @@ public:
     }
     /// Constructor (vector perturbation).
     /**
-     * **NOTE** This constructor is enabled only if \p T, after the removal of cv/reference qualifiers,
-     * is not pagmo::algorithm.
+     * \verbatim embed:rst:leading-asterisk
+     * .. warning::
+     *
+     *    This constructor is enabled only if ``T``, after the removal of cv/reference qualifiers,
+     *    is not :cpp:class:`pagmo::algorithm`.
+     *
+     * \endverbatim
      *
      * This constructor will construct a monotonic basin hopping algorithm using a vector perturbation.
      *
-     * @param a a user-defined algorithm (UDA) that will be used to construct the inner algorithm.
+     * @param a a user-defined algorithm (UDA) or a pagmo::algorithm that will be used to construct the inner algorithm.
      * @param stop consecutive runs of the inner algorithm that need to
      * result in no improvement for pagmo::mbh to stop.
      * @param perturb a pagmo::vector_double with the perturbations to be applied to each component
@@ -252,8 +261,8 @@ public:
                 // Prints a log line after each call to the inner algorithm
                 // 1 - Every 50 lines print the column names
                 if (count % 50u == 1u) {
-                    print("\n", std::setw(7), "Fevals:", std::setw(15), "Best:", std::setw(15), "Violated:",
-                          std::setw(15), "Viol. Norm:", std::setw(15), "Trial:", '\n');
+                    print("\n", std::setw(7), "Fevals:", std::setw(15), "Best:", std::setw(15),
+                          "Violated:", std::setw(15), "Viol. Norm:", std::setw(15), "Trial:", '\n');
                 }
                 // 2 - Print
                 auto cur_best_f = pop.get_f()[pop.best_idx()];
@@ -379,13 +388,18 @@ public:
     {
         return m_algorithm;
     }
-    /// Getter for the inner problem.
+    /// Getter for the inner algorithm.
     /**
      * Returns a reference to the inner pagmo::algorithm.
      *
-     * **NOTE** The ability to extract a non const reference is provided only in order to allow to call
-     * non-const methods on the internal pagmo::algorithm instance. Assigning a new pagmo::algorithm via
-     * this reference is undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. warning::
+     *
+     *    The ability to extract a non const reference is provided only in order to allow to call
+     *    non-const methods on the internal :cpp:class:`pagmo::algorithm` instance. Assigning a new
+     *    :cpp:class:`pagmo::algorithm` via this reference is undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a reference to the inner pagmo::algorithm.
      */
@@ -412,7 +426,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Monotonic Basin Hopping (MBH) - Generalized";
+        return "MBH: Monotonic Basin Hopping - Generalized";
     }
     /// Extra informations.
     /**
@@ -459,7 +473,7 @@ private:
     unsigned m_verbosity;
     mutable log_type m_log;
 };
-}
+} // namespace pagmo
 
 PAGMO_REGISTER_ALGORITHM(pagmo::mbh)
 

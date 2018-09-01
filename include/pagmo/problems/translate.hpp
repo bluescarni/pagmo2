@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -34,12 +34,11 @@ see https://www.gnu.org/licenses/. */
 #include <stdexcept>
 #include <type_traits>
 
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../problem.hpp"
-#include "../serialization.hpp"
-#include "../type_traits.hpp"
-#include "../types.hpp"
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/problem.hpp>
+#include <pagmo/type_traits.hpp>
+#include <pagmo/types.hpp>
 
 namespace pagmo
 {
@@ -61,18 +60,21 @@ public:
     /**
      * The default constructor will initialize a non-translated pagmo::null_problem.
      */
-    translate() : m_problem(null_problem{}), m_translation({0.})
-    {
-    }
+    translate() : m_problem(null_problem{}), m_translation({0.}) {}
 
     /// Constructor from problem and translation vector.
     /**
-     * **NOTE** This constructor is enabled only if \p T can be used to construct a pagmo::problem.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    This constructor is enabled only if ``T`` can be used to construct a :cpp:class:`pagmo::problem`.
+     *
+     * \endverbatim
      *
      * Wraps a user-defined problem so that its fitness , bounds, etc. will be shifted by a
      * translation vector.
      *
-     * @param p a user-defined problem.
+     * @param p a pagmo::problem or a user-defined problem (UDP).
      * @param translation an <tt>std::vector</tt> containing the translation to apply.
      *
      * @throws std::invalid_argument if the length of \p translation is
@@ -84,9 +86,9 @@ public:
         : m_problem(std::forward<T>(p)), m_translation(translation)
     {
         if (translation.size() != m_problem.get_nx()) {
-            pagmo_throw(std::invalid_argument, "Length of shift vector is: " + std::to_string(translation.size())
-                                                   + " while the problem dimension is: "
-                                                   + std::to_string(m_problem.get_nx()));
+            pagmo_throw(std::invalid_argument,
+                        "Length of shift vector is: " + std::to_string(translation.size())
+                            + " while the problem dimension is: " + std::to_string(m_problem.get_nx()));
         }
     }
 
@@ -153,6 +155,15 @@ public:
     vector_double::size_type get_nic() const
     {
         return m_problem.get_nic();
+    }
+
+    /// Integer dimension
+    /**
+     * @return the integer dimension of the inner problem.
+     */
+    vector_double::size_type get_nix() const
+    {
+        return m_problem.get_nix();
     }
 
     /// Checks if the inner problem has gradients.
@@ -344,9 +355,14 @@ public:
     /**
      * Returns a reference to the inner pagmo::problem.
      *
-     * **NOTE** The ability to extract a non const reference is provided only in order to allow to call
-     * non-const methods on the internal pagmo::problem instance. Assigning a new pagmo::problem via
-     * this reference is undefined behaviour.
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *
+     *    The ability to extract a non const reference is provided only in order to allow to call
+     *    non-const methods on the internal :cpp:class:`pagmo::problem` instance. Assigning a new
+     *    :cpp:class:`pagmo::problem` via this reference is undefined behaviour.
+     *
+     * \endverbatim
      *
      * @return a reference to the inner pagmo::problem.
      */
@@ -388,12 +404,12 @@ private:
         std::transform(x.begin(), x.end(), m_translation.begin(), x_sh.begin(), std::plus<double>());
         return x_sh;
     }
-    /// Inner problem
+    // Inner problem
     problem m_problem;
-    /// translation vector
+    // translation vector
     vector_double m_translation;
 };
-}
+} // namespace pagmo
 
 PAGMO_REGISTER_PROBLEM(pagmo::translate)
 

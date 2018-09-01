@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -29,20 +29,47 @@ see https://www.gnu.org/licenses/. */
 #ifndef PAGMO_ALGORITHMS_PSO_HPP
 #define PAGMO_ALGORITHMS_PSO_HPP
 
+#include <cinttypes>
+#include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <random>
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../utils/generic.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>
 
 namespace pagmo
 {
+
+namespace detail
+{
+
+// Usual trick with global read-only data.
+template <typename = void>
+struct pso_statics {
+    /*! @brief Von Neumann neighborhood
+     *  (increments on particles' lattice coordinates that produce the coordinates of their neighbors)
+     *
+     *  The von Neumann neighbourhood of a point includes all the points at a Hamming distance of 1.
+     *
+     *  - https://en.wikipedia.org/wiki/Von_Neumann_neighborhood
+     *  - http://mathworld.wolfram.com/vonNeumannNeighborhood.html
+     *  - https://en.wikibooks.org/wiki/Cellular_Automata/Neighborhood
+     */
+    static const int vonNeumann_neighb_diff[4][2];
+};
+
+// Init of the statics data
+template <typename T>
+const int pso_statics<T>::vonNeumann_neighb_diff[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+
+} // namespace detail
 
 /// Particle Swarm Optimization
 /**
@@ -87,15 +114,27 @@ namespace pagmo
  *... (constriction coefficient)
  * \li Variant 6: Fully Informed Particle Swarm (FIPS)
  *
- * **NOTE** The default variant in PaGMO is n. 5 corresponding to the canonical PSO and thus using the
- * constriction coefficient velocity update formula
  *
- * **NOTE** The algorithm does not work for multi-objective problems, nor for
- * constrained or stochastic optimization
+ * \verbatim embed:rst:leading-asterisk
+ * .. note::
  *
- * See: http://www.particleswarm.info/ for a repository of information related to PSO
- * See: http://dx.doi.org/10.1007/s11721-007-0002-0 for a survey
- * See: http://www.engr.iupui.edu/~shi/Coference/psopap4.html for the first paper on this algorithm
+ *    The default variant in PaGMO is n. 5 corresponding to the canonical PSO and thus using the constriction
+ *    coefficient velocity update formula
+ *
+ * .. warning::
+ *
+ *    The algorithm is not suitable for multi-objective problems, nor for
+ *    constrained or stochastic optimization
+ *
+ * .. seealso::
+ *
+ *    http://www.particleswarm.info/ for a repository of information related to PSO
+ *
+ * .. seealso::
+ *
+ *    https://link.springer.com/article/10.1007%2Fs11721-007-0002-0 for a survey
+ *
+ * \endverbatim
  */
 class pso
 {
@@ -128,7 +167,7 @@ public:
      * @param memory when true the particle velocities are not reset between successive calls to evolve
      * @param seed seed used by the internal random number generator (default is random)
      *
-     * @throws std::invalid_argument if omega is not in the [0,1] interval, eta1, eta2 are not in the [0,1] interval,
+     * @throws std::invalid_argument if omega is not in the [0,1] interval, eta1, eta2 are not in the [0,4] interval,
      * vcoeff is not in ]0,1], variant is not one of 1 .. 6, neighb_type is not one of 1 .. 4, neighb_param is zero
      */
     pso(unsigned int gen = 1u, double omega = 0.7298, double eta1 = 2.05, double eta2 = 2.05, double max_vel = 0.5,
@@ -146,9 +185,9 @@ public:
                     + std::to_string(m_variant) + " was detected");
         }
         if (m_eta1 < 0. || m_eta2 < 0. || m_eta1 > 4. || m_eta2 > 4.) {
-            pagmo_throw(std::invalid_argument, "The eta parameters must be in the [0,4] range, while eta1 = "
-                                                   + std::to_string(m_eta1) + ", eta2 = " + std::to_string(m_eta2)
-                                                   + " was detected");
+            pagmo_throw(std::invalid_argument,
+                        "The eta parameters must be in the [0,4] range, while eta1 = " + std::to_string(m_eta1)
+                            + ", eta2 = " + std::to_string(m_eta2) + " was detected");
         }
         if (m_max_vel <= 0. || m_max_vel > 1.) {
             pagmo_throw(std::invalid_argument, "The maximum particle velocity (as a fraction of the bounds) should be "
@@ -360,8 +399,9 @@ public:
                     for (decltype(dim) d = 0u; d < dim; ++d) {
                         r1 = drng(m_e);
                         r2 = drng(m_e);
-                        m_V[p][d] = m_omega * (m_V[p][d] + m_eta1 * r1 * (lbX[p][d] - X[p][d])
-                                               + m_eta2 * r2 * (best_neighb[d] - X[p][d]));
+                        m_V[p][d] = m_omega
+                                    * (m_V[p][d] + m_eta1 * r1 * (lbX[p][d] - X[p][d])
+                                       + m_eta2 * r2 * (best_neighb[d] - X[p][d]));
                     }
                 }
 
@@ -439,7 +479,7 @@ public:
             if (m_verbosity > 0u) {
                 // Every m_verbosity generations print a log line
                 if (gen % m_verbosity == 1u || m_verbosity == 1u) {
-                    // We compute the number of function evaluations made
+                    // We compute the number of fitness evaluations made
                     auto feval_count = prob.get_fevals() - fevals0;
                     // We compute the average across the swarm of the best fitness encountered
                     vector_double local_fits(swarm_size);
@@ -482,9 +522,9 @@ public:
                     // We start printing
                     // Every 50 lines print the column names
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15), "gbest:",
-                              std::setw(15), "Mean Vel.:", std::setw(15), "Mean lbest:", std::setw(15), "Avg. Dist.:",
-                              '\n');
+                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15),
+                              "gbest:", std::setw(15), "Mean Vel.:", std::setw(15), "Mean lbest:", std::setw(15),
+                              "Avg. Dist.:", '\n');
                     }
                     print(std::setw(7), gen, std::setw(15), feval_count, std::setw(15), best, std::setw(15),
                           mean_velocity, std::setw(15), lb_avg, std::setw(15), avg_dist, '\n');
@@ -515,15 +555,15 @@ public:
      * @code{.unparsed}
      * Gen:        Fevals:         gbest:     Mean Vel.:    Mean lbest:    Avg. Dist.:
      *    1             40        2.01917       0.298551        1855.03       0.394038
-    *    51           1040     0.00436298      0.0407766         1.0704         0.1288
-    *   101           2040    0.000228898      0.0110884       0.282699      0.0488969
-    *   151           3040    5.53426e-05     0.00231688       0.106807      0.0167147
-    *   201           4040    3.88181e-06    0.000972132      0.0315856     0.00988859
-    *   251           5040    1.25676e-06    0.000330553     0.00146805     0.00397989
-    *   301           6040    3.76784e-08    0.000118192    0.000738972      0.0018789
-    *   351           7040    2.35193e-09    5.39387e-05    0.000532189     0.00253805
-    *   401           8040    3.24364e-10     2.2936e-05    9.02879e-06    0.000178279
-    *   451           9040    2.31237e-10    5.01558e-06    8.12575e-07    9.77163e-05
+     *    51           1040     0.00436298      0.0407766         1.0704         0.1288
+     *   101           2040    0.000228898      0.0110884       0.282699      0.0488969
+     *   151           3040    5.53426e-05     0.00231688       0.106807      0.0167147
+     *   201           4040    3.88181e-06    0.000972132      0.0315856     0.00988859
+     *   251           5040    1.25676e-06    0.000330553     0.00146805     0.00397989
+     *   301           6040    3.76784e-08    0.000118192    0.000738972      0.0018789
+     *   351           7040    2.35193e-09    5.39387e-05    0.000532189     0.00253805
+     *   401           8040    3.24364e-10     2.2936e-05    9.02879e-06    0.000178279
+     *   451           9040    2.31237e-10    5.01558e-06    8.12575e-07    9.77163e-05
      * @endcode
      *
      * Gen is the generation number, Fevals the number of fitness evaluation made, gbest the global best,
@@ -570,7 +610,7 @@ public:
      */
     std::string get_name() const
     {
-        return "Particle Swarm Optimization";
+        return "PSO: Particle Swarm Optimization";
     }
     /// Extra informations
     /**
@@ -739,17 +779,6 @@ private:
         }
     }
 
-    /*! @brief Von Neumann neighborhood
-     *  (increments on particles' lattice coordinates that produce the coordinates of their neighbors)
-     *
-     *  The von Neumann neighbourhood of a point includes all the points at a Hamming distance of 1.
-     *
-     *  - http://en.wikipedia.org/wiki/Von_Neumann_neighborhood
-     *  - http://mathworld.wolfram.com/vonNeumannNeighborhood.html
-     *  - http://en.wikibooks.org/wiki/Cellular_Automata/Neighborhood
-     */
-    const int vonNeumann_neighb_diff[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-
     /**
      *  @brief Arranges particles in a lattice, where each interacts with its immediate 4 neighbors to the N, S, E and
      * W.
@@ -785,9 +814,9 @@ private:
             p_y = pidx / cols;
 
             for (unsigned int nidx = 0u; nidx < 4u; nidx++) {
-                n_x = (p_x + vonNeumann_neighb_diff[nidx][0]) % cols;
+                n_x = (p_x + detail::pso_statics<>::vonNeumann_neighb_diff[nidx][0]) % cols;
                 if (n_x < 0) n_x = cols + n_x;
-                n_y = (p_y + vonNeumann_neighb_diff[nidx][1]) % rows;
+                n_y = (p_y + detail::pso_statics<>::vonNeumann_neighb_diff[nidx][1]) % rows;
                 if (n_y < 0) n_y = rows + n_y;
 
                 neighb[static_cast<unsigned int>(pidx)].push_back(static_cast<unsigned int>(n_y * cols + n_x));

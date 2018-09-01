@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -34,12 +34,12 @@ see https://www.gnu.org/licenses/. */
 #include <string>
 #include <tuple>
 
-#include "../algorithm.hpp"
-#include "../exceptions.hpp"
-#include "../io.hpp"
-#include "../population.hpp"
-#include "../rng.hpp"
-#include "../utils/generic.hpp"
+#include <pagmo/algorithm.hpp>
+#include <pagmo/exceptions.hpp>
+#include <pagmo/io.hpp>
+#include <pagmo/population.hpp>
+#include <pagmo/rng.hpp>
+#include <pagmo/utils/generic.hpp>
 
 namespace pagmo
 {
@@ -58,18 +58,29 @@ namespace pagmo
  * by mutating its best individual uniformly at random within the bounds. Should the
  * offspring be better than the worst individual in the population it will substitute it.
  *
- * **NOTE** The algorithm does not work for multi-objective problems, nor for
- * constrained optimization
+ * \verbatim embed:rst:leading-asterisk
  *
- * **NOTE** The mutation is uniform within box-bounds. Hence, unbounded problems
- * will produce an error.
+ * .. warning::
  *
- * See: Oliveto, Pietro S., Jun He, and Xin Yao. "Time complexity of evolutionary algorithms for
- * combinatorial optimization: A decade of results." International Journal of Automation and Computing
- * 4.3 (2007): 281-293.
+ *    The algorithm is not suitable for multi-objective problems, nor for
+ *    constrained or stochastic optimization
  *
- * See: http://www.scholarpedia.org/article/Evolution_strategies
+ * .. note::
  *
+ *    The mutation is uniform within box-bounds. Hence, unbounded problems will produce undefined
+ *    behaviours.
+ *
+ * .. seealso::
+ *
+ *    Oliveto, Pietro S., Jun He, and Xin Yao. "Time complexity of evolutionary algorithms for
+ *    combinatorial optimization: A decade of results." International Journal of Automation and Computing
+ *    4.3 (2007): 281-293.
+ *
+ * .. seealso::
+ *
+ *    http://www.scholarpedia.org/article/Evolution_strategies
+ *
+ * \endverbatim
  */
 class sea
 {
@@ -140,8 +151,6 @@ public:
 
         for (unsigned int i = 1u; i <= m_gen; ++i) {
             if (prob.is_stochastic()) {
-                // change the problem seed. This is done via the population_set_seed method as prob.set_seed
-                // is forbidden being prob a const ref.
                 pop.get_problem().set_seed(std::uniform_int_distribution<unsigned int>()(m_e));
                 // re-evaluate the whole population w.r.t. the new seed
                 for (decltype(pop.size()) j = 0u; j < pop.size(); ++j) {
@@ -174,8 +183,8 @@ public:
                 if (m_verbosity == 1u && improvement > 0.) {
                     // Prints on screen
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15), "Best:",
-                              std::setw(15), "Improvement:", std::setw(15), "Mutations:", '\n');
+                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15),
+                              "Best:", std::setw(15), "Improvement:", std::setw(15), "Mutations:", '\n');
                     }
                     print(std::setw(7), i, std::setw(15), prob.get_fevals() - fevals0, std::setw(15),
                           pop.get_f()[best_idx][0], std::setw(15), improvement, std::setw(15), mut, '\n');
@@ -190,8 +199,8 @@ public:
                 if (i % m_verbosity == 1u) {
                     // Every 50 lines print the column names
                     if (count % 50u == 1u) {
-                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15), "Best:",
-                              std::setw(15), "Improvement:", std::setw(15), "Mutations:", '\n');
+                        print("\n", std::setw(7), "Gen:", std::setw(15), "Fevals:", std::setw(15),
+                              "Best:", std::setw(15), "Improvement:", std::setw(15), "Mutations:", '\n');
                     }
                     print(std::setw(7), i, std::setw(15), prob.get_fevals() - fevals0, std::setw(15),
                           pop.get_f()[best_idx][0], std::setw(15), improvement, std::setw(15), mut, '\n');
@@ -221,8 +230,8 @@ public:
      * 668           4013        1487.34        73.2677              2
      * @endcode
      * Gen, is the generation number, Fevals the number of function evaluation used, Best is the best fitness
-     * function currently in the population, Improvement is the improvement made by the las mutation and Mutations
-     * is the number of mutated componnets of the decision vector
+     * function currently in the population, Improvement is the improvement made by the last mutation and Mutations
+     * is the number of mutated components of the decision vector
      *
      * @param level verbosity level
      */
@@ -263,7 +272,7 @@ public:
      */
     std::string get_name() const
     {
-        return "(N+1)-EA Simple Evolutionary Algorithm";
+        return "SEA: (N+1)-EA Simple Evolutionary Algorithm";
     }
     /// Extra informations
     /**

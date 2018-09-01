@@ -1,4 +1,4 @@
-/* Copyright 2017 PaGMO development team
+/* Copyright 2017-2018 PaGMO development team
 
 This file is part of the PaGMO library.
 
@@ -35,7 +35,7 @@ see https://www.gnu.org/licenses/. */
 #include <type_traits>
 #include <vector>
 
-#include "../type_traits.hpp"
+#include <pagmo/type_traits.hpp>
 
 namespace pagmo
 {
@@ -122,7 +122,7 @@ struct hash_vf {
         return retval;
     }
 };
-} // end of detail namespace
-} // end of pagmo namespace
+} // namespace detail
+} // namespace pagmo
 
 #endif
