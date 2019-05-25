@@ -81,7 +81,7 @@ class scipy_de(object):
         if len(pop) == 0:
             return pop
 
-        # Defined the objfun.
+        # Define the objfun.
         def objfun(x):
             return prob.fitness(x)[0]
 
@@ -104,3 +104,7 @@ class scipy_de(object):
 
         # Return the modified population.
         return pop
+
+    @property
+    def result(self):
+        return self._result
