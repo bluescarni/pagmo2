@@ -53,6 +53,7 @@ from ._version import __version__
 from .core import *
 from .plotting import *
 from ._py_islands import *
+from ._py_algorithms import *
 from ._py_problems import *
 
 # We move into the problems, algorithms and islands namespaces
@@ -61,6 +62,11 @@ for item in dir(_py_islands):
     if not item.startswith("_"):
         setattr(islands, item, getattr(_py_islands, item))
 del _py_islands
+
+for item in dir(_py_algorithms):
+    if not item.startswith("_"):
+        setattr(algorithms, item, getattr(_py_algorithms, item))
+del _py_algorithms
 
 for item in dir(_py_problems):
     if not item.startswith("_"):
