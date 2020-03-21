@@ -264,7 +264,8 @@ island::island() : m_ptr(detail::make_unique<idata_t>()) {}
  */
 island::island(const island &other)
     : m_ptr(detail::make_unique<idata_t>(other.m_ptr->isl_ptr->clone(), other.get_algorithm(), other.get_population(),
-                                         other.m_ptr->r_pol, other.m_ptr->s_pol))
+                                         other.m_ptr->r_pol, other.m_ptr->s_pol)),
+      m_active(other.m_active.load())
 {
     // NOTE: the idata_t ctor will set the archi ptr to null. The archi ptr is never copied.
     assert(m_ptr->archi_ptr == nullptr);
@@ -281,6 +282,7 @@ island::island(island &&other) noexcept
 {
     other.wait_check_ignore();
     m_ptr = std::move(other.m_ptr);
+    m_active.store(other.m_active.load());
 }
 
 /// Destructor.
@@ -313,6 +315,7 @@ island &island::operator=(island &&other) noexcept
         }
         other.wait_check_ignore();
         m_ptr = std::move(other.m_ptr);
+        m_active.store(other.m_active.load());
     }
     return *this;
 }
@@ -337,6 +340,12 @@ island &island::operator=(const island &other)
 
 void island::evolve(unsigned n)
 {
+    // Don't do anything if the island
+    // is inactive.
+    if (!is_active()) {
+        return;
+    }
+
     // First add an empty future, so that if an exception is thrown
     // we will not have modified m_futures, nor we will have a future
     // in flight which we cannot wait upon.
@@ -861,6 +870,32 @@ std::string island::get_name() const
 std::string island::get_extra_info() const
 {
     return m_ptr->isl_ptr->get_extra_info();
+}
+
+/// Check if the island is active.
+/**
+ * \verbatim embed:rst:leading-asterisk
+ * .. versionadded:: 2.15
+ * \endverbatim
+ *
+ * @return ``true`` if the island is active, ``false`` otherwise.
+ */
+bool island::is_active() const
+{
+    return m_active.load();
+}
+
+/// Set the active flag.
+/**
+ * \verbatim embed:rst:leading-asterisk
+ * .. versionadded:: 2.15
+ * \endverbatim
+ *
+ * @param flag dsada.
+ */
+void island::set_active(bool flag)
+{
+    m_active.store(flag);
 }
 
 #if !defined(PAGMO_DOXYGEN_INVOKED)

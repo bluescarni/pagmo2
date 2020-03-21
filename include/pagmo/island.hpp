@@ -29,6 +29,7 @@ see https://www.gnu.org/licenses/. */
 #ifndef PAGMO_ISLAND_HPP
 #define PAGMO_ISLAND_HPP
 
+#include <atomic>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -970,6 +971,7 @@ public:
     ~island();
     // Move assignment.
     island &operator=(island &&) noexcept;
+    // Copy assignment.
     island &operator=(const island &);
     /// Extract a const pointer to the UDI used for construction.
     /**
@@ -1103,6 +1105,11 @@ public:
     // Island's extra info.
     std::string get_extra_info() const;
 
+    // Check if the island is active.
+    bool is_active() const;
+    // Set the active flag.
+    void set_active(bool);
+
     // Check if the island is valid.
     bool is_valid() const;
     /// Save to archive.
@@ -1120,7 +1127,8 @@ public:
     template <typename Archive>
     void save(Archive &ar, unsigned) const
     {
-        detail::to_archive(ar, m_ptr->isl_ptr, get_algorithm(), get_population(), m_ptr->r_pol, m_ptr->s_pol);
+        detail::to_archive(ar, m_ptr->isl_ptr, get_algorithm(), get_population(), m_ptr->r_pol, m_ptr->s_pol,
+                           m_active.load());
     }
     /// Load from archive.
     /**
@@ -1129,18 +1137,27 @@ public:
      * before returning.
      *
      * @param ar the source archive.
+     * @param version the version of the source archive.
      *
      * @throws unspecified any exception thrown by the deserialization of pagmo::algorithm, pagmo::population and of the
      * UDI type.
      */
     template <typename Archive>
-    void load(Archive &ar, unsigned)
+    void load(Archive &ar, unsigned version)
     {
         // Deserialize into tmp island, and then move assign it.
         island tmp_island;
         // NOTE: no need to lock access to these, as there is no evolution going on in tmp_island.
         detail::from_archive(ar, tmp_island.m_ptr->isl_ptr, *tmp_island.m_ptr->algo, *tmp_island.m_ptr->pop,
                              tmp_island.m_ptr->r_pol, tmp_island.m_ptr->s_pol);
+        // NOTE: when loading from a version 0 island,
+        // the m_active flag will have been set to true
+        // by the default ctor of tmp_island.
+        if (version > 0u) {
+            bool active;
+            ar >> active;
+            tmp_island.m_active.store(active);
+        }
         *this = std::move(tmp_island);
     }
     BOOST_SERIALIZATION_SPLIT_MEMBER()
@@ -1159,6 +1176,7 @@ private:
 
 private:
     std::unique_ptr<idata_t> m_ptr;
+    std::atomic<bool> m_active{true};
 };
 
 } // namespace pagmo
@@ -1168,5 +1186,8 @@ PAGMO_IMPLEMENT_XEUS_CLING_REPR(island)
 
 // Disable tracking for the serialisation of island.
 BOOST_CLASS_TRACKING(pagmo::island, boost::serialization::track_never)
+
+// Current version of the island class' serialization format.
+BOOST_CLASS_VERSION(pagmo::island, 1)
 
 #endif
